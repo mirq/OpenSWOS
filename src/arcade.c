@@ -7,7 +7,7 @@
  *   replay viewer does), looping. Coin keys 5/6 still register. The logo +
  *   INSERT-COIN overlay drawn *over* the reel, and coin->match, come next.
  */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdint.h>
 #include <stddef.h>
@@ -2478,4 +2478,4 @@ void ArcadeMainLoop(void)
     }
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

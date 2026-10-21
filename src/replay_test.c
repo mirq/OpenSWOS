@@ -25,7 +25,7 @@
  * Exit codes: 0 every frame matched, 2 divergence, 1 setup failure.
  */
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1637,4 +1637,4 @@ uint64_t ReplayTest_ObservableHash(void)
     return h;
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

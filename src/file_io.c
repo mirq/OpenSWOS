@@ -15,7 +15,7 @@
 #include "input_text.h"
 #include "endian_helpers.h"
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include <string.h>
 #endif
 
@@ -35,7 +35,7 @@ extern uint16_t _assetCurrentIndex;
 extern uintptr_t _assetLoaderCacheFlag;
 extern uint16_t _assetLoaderAltPathReady;
 extern volatile uintptr_t _frontbufferBasePtr;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern volatile uintptr_t _frontbufferBaseAltPtr;
 extern uint8_t _frontbufferBaseAlt[];
 #endif
@@ -197,7 +197,7 @@ int16_t LoadFileEx(uint8_t *filename, uint8_t *dest, uint32_t *outFileSize)
                     fileSize = unpacked;
                 }
             }
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             /* The Amiga `BlitterCopyOverlayToScreen` would have copied
              * the alt → primary buffer for us in the staging path. The
              * early-exit branch skipped that on Amiga because the asset
@@ -665,7 +665,7 @@ int16_t LoadHilFile(uint8_t *filename)
         return 0;
     }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     {
         /* DOS / SWOS-2020 .HIL: little-endian, 3626-byte header, different sprite
          * numbering, and up to 613 KB -- more than LoadFileEx can stage. Read and
@@ -1087,7 +1087,7 @@ int16_t GetFilenameAndExtension(uint32_t preferredExt, uint8_t *defaultFilename,
                 ext == 0x2E544143u || /* .TAC */
                 ext == 0x2E48494Cu || /* .HIL */
                 ext == 0x2E52504Cu    /* .RPL (PC whole-match replay) */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
                 || ext == 0x2E535250u /* .SRP (OpenSWOS whole-match replay) */
 #endif
                 )

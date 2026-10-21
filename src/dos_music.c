@@ -19,7 +19,7 @@
  * The song asks little: four melodic channels and the drum channel, channel volume set
  * five times, no pitch bend, no pan, no sustain. What it does not use is not here.
  */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -515,4 +515,4 @@ int32_t DosMusic_SelfTest(void)
     return failures;
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

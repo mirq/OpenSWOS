@@ -7922,7 +7922,7 @@ void ShowDIYCupMenuWithParams(uint16_t arg0, uint16_t arg1, uint16_t arg2)
 #endif
         do {
             MenuCheckControls();
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             /* Pace at 50 Hz AND pump SDL events. MenuCheckControls
              * reads pl1Fire from `ciaa_pra` which is only updated by
              * `InputSDL_PostFrame` on the SDL event-pump path; without
@@ -9779,7 +9779,7 @@ void ShowDiyLeaguesTournamentMenu(uint16_t type, uint16_t viewOnly, uint16_t foc
 #endif
         do {
             MenuCheckControls();
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             /* See ShowDIYCupMenuWithParams: Platform_VBlank both
              * paces at 50 Hz and pumps SDL events so KEYUP for the
              * just-pressed CONTINUE actually reaches ciaa_pra. */

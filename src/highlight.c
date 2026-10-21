@@ -188,7 +188,7 @@ void Replay_ResetBallCamera(void) { s_replayBallValid = 0; s_replayCamXSet = 0; 
  * and on Amiga, where WIDE_MARGIN is 0. */
 static int16_t ReplaySimCameraX(int16_t outRender)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Exact inverse of Render_CameraX(), so the round trip still lands back on
      * the render origin this function computed — the property the comment above
      * depends on. It used to be `+ WIDE_MARGIN` because the forward map was
@@ -213,7 +213,7 @@ static int16_t ReplaySimCameraX(int16_t outRender)
 
 static int16_t ReplayCameraX(int16_t recordedX)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     extern uint16_t _playHighlightFlag;
     s_replayRecCamX = recordedX;   /* the sprite decode reads this to reconstruct the ball's world X */
     if (_playHighlightFlag == 0) {
@@ -311,7 +311,7 @@ static int16_t ReplayCameraX(int16_t recordedX)
  * players aligned. No-op for our own 272-tall HILs (camera already in range). */
 static int16_t ReplayCameraY(int16_t recordedY)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     extern uint16_t _playHighlightFlag;
     s_replayRecCamY = recordedY;   /* the decode rebuilds world Y from this */
     if (_playHighlightFlag == 0)
@@ -426,7 +426,7 @@ void SetPitchTypeAndNumber(void)
         needChoose = 1;
     }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     {
         /* SWOS_PITCH_TYPE=0..6 pins the pitch (frozen, muddy, wet, soft, normal,
          * dry, hard) for a test run: the pitch's colours are what the players are
@@ -491,7 +491,7 @@ void CopyTeamsAndHeader(void)
 {
     _numScenesInHilFile = _hilNumGoals;
     _pitchNumberAndType = _hilPitchNumber;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     {
         /* SWOS_PITCH_TYPE=0..6 / SWOS_PITCH_NUMBER=1..6 pin a highlight's pitch too,
          * as they do a match's (ChoosePitchType, dos_load_pitch): one recording
@@ -765,7 +765,7 @@ void DrawReplayFrame(void)
     uint8_t *a0 = _currentGoalPtr;
     uint32_t d0;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* A loaded .SRP plays from its own frame stream (src/replay_v2.c); the score overlay
      * and the pause handling below are shared. */
     {
@@ -840,7 +840,7 @@ sprite_decode:
         int32_t sx = (int32_t)(d0 << 12) >> 22;
         int32_t sy = (int32_t)(d0 << 22) >> 22;
         uint32_t sprIdx = d0 >> 20;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #if REPLAY_BALL_TRACK_CAMERA
         if (sprIdx == REPLAY_BALL_SHADOW_SPR) {
             /* sx is still the recorded (un-re-anchored) screen X here, so
@@ -958,7 +958,7 @@ after_decode:
     /* Show score overlay during normal replay (same playfield-relative offset).
      * Suppressed in arcade attract so the demo reels don't show a scoreline. */
     int showScore = (_normalReplayRunning != 0);
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     { extern int _gArcadeMode; if (_gArcadeMode) showScore = 0; }
 #endif
     if (showScore) {
@@ -1002,7 +1002,7 @@ after_decode:
      * slomo. Use Platform_VBlank instead so we both pace at 50 Hz AND
      * keep AudioSDL_Tick firing on every wait iteration. */
     if (_replayState == 3 && _paused == 0) {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         extern int Platform_VBlank(void);
         Platform_VBlank();
         Platform_VBlank();

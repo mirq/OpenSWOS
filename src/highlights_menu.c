@@ -134,7 +134,7 @@ void LoadHighlightsMenu(void)
     if (GetFilenameAndExtension(0, _aLoadHighlights, _aLoadHighlights) != 0)
         goto cleanup;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* PC: also accept .RPL — a whole-match replay in the same DOS HIL format.
      * The Highlights menu plays both; clear any prior RPL state first so a .HIL
      * uses the normal scene buffer. */
@@ -257,7 +257,7 @@ static void viewAndRestoreMenu(void (*viewFunc)(void))
 
     viewFunc();
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Back to the menu view. Every full-screen viewer routed through here may
      * have switched to the DOS 320x200 (game_loop.c MatchViewEnter), and the
      * menus are 272 lines of Amiga artwork. Safe unconditionally: MatchViewLeave
@@ -294,7 +294,7 @@ void ShowHighlights(void)
     ShowMenu(_stadiumMenu);
     _deadVarAlways0 = 0;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Show the stadium "VS" line-up for a brief beat, then auto-advance. The
      * Amiga held it on screen while the selection fire was held, proceeding the
      * moment it was released (SWOS2.s wait_for_both_joy_fire_release → FadeOut) —

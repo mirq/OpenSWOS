@@ -77,7 +77,7 @@ static inline __attribute__((always_inline)) void waitBlit(void)
     _custom->dmacon = (uint16_t)DMACON_BLT_OFF;
 }
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* ================================================================
  * ScrollX twin maintenance (AGA 2x-tall frontbuffer)
  *
@@ -124,9 +124,9 @@ static void mirrorColumn(uint32_t col, uint16_t y)
     columnBlitCopy(col + yOff, col + yOff + FB_MIRROR_OFFSET_BYTES,
                    (uint16_t)((SCREEN_HEIGHT - y) * NUM_PLANES), 2u);
 }
-#endif /* AGA && !SWOS_SDL_BUILD */
+#endif /* AGA && !SWOS_CHUNKY_BUILD */
 
-#ifndef SWOS_SDL_BUILD
+#ifndef SWOS_CHUNKY_BUILD
 /* ----------------------------------------------------------------
  * scrollXBlitColumn — blit ONE 16px (1-word) pitch-tile column into the
  * frontbuffer at destXByteOff, full height, wrapping the circular Y buffer at
@@ -211,9 +211,9 @@ static void scrollXBlitColumn(uint8_t *a1, uint32_t destXByteOff)
         BLT_W(_custom->bltsize, bltsize);
     }
 }
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* The twin rows of a crossing's column, LATER (2026-10-14). The twins only have to hold the
  * new tiles by this buffer's next frame -- its undraw reads them first, and a vertical wrap
  * shows them no sooner -- so the match loop (g_scrollTwinQueue) does not copy them on the
@@ -285,7 +285,7 @@ void ScrollYVergeRefresh(void);   /* verge-only margin refresh; defined after Sc
 __attribute__((used, externally_visible))
 void ScrollXUpdateColumnsAndBlit(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Amiga's incremental scroll updates (blit one new column of pitch
      * tiles when the camera crosses a tile boundary) use 4-bitplane
      * interleaved pitch-tile data + Amiga blitter word writes. On SDL
@@ -304,7 +304,7 @@ void ScrollXUpdateColumnsAndBlit(void)
         return;
     }
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     /* Left-touchline verge refresh (see ScrollYVergeRefresh). ScrollY only refreshes the FMODE
      * verge margin (tile 0 -> byte 0) for the rows it copies, and is skipped on a horizontal-only
      * frame, so rows first exposed at camXMod>=32 keep a stale byte-0 that the display's -4
@@ -326,7 +326,7 @@ void ScrollXUpdateColumnsAndBlit(void)
         d1 >>= TILE_SHIFT_X;  /* asr.w */
     } else {
         /* Moved left */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         /* FMODE=1: the display reads a 32px LEFT margin (coarse-4) for its fine
          * scroll (the empty-column pull-back), applied only at cameraX >= 32. The
          * leftward-ENTERING column must land in that margin or it shows the white
@@ -448,7 +448,7 @@ void ScrollXUpdateColumnsAndBlit(void)
         BLT_W(_custom->bltsize, 1);
     }
 #endif /* AGA */
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 }
 
 /* ================================================================
@@ -459,7 +459,7 @@ void ScrollXUpdateColumnsAndBlit(void)
  * Blitter-based mask copy from frontbuffer to mask buffer.
  * ================================================================ */
 __attribute__((used, externally_visible))
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* The current pitch-row's tile pointers, in fast RAM: the pointer table is in the chip-RAM
  * pitch buffer, and it only changes every 16 scanlines (ScrollYUpdateRowsAndBlit). */
 static uint8_t *s_rowTiles[FMODE_FETCH_BYTES / 2];
@@ -470,10 +470,10 @@ extern uint32_t g_pitchTilesBytes;
 
 void ScrollYUpdateRowsAndBlit(void)
 {
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     uint8_t *rowTilesFor = NULL;     /* the a1 s_rowTiles was read from; NULL = re-read */
 #endif
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* See ScrollXUpdateColumnsAndBlit above — same rationale. */
     return;
 #else
@@ -486,7 +486,7 @@ void ScrollYUpdateRowsAndBlit(void)
     int16_t rowCount;
     uint8_t *a1;      /* pitch pointer table cursor */
     uint8_t *a3;      /* dest plane 0 */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     uint8_t *a1_verge; /* pitch pointer table cursor for tile column 0 (verge margin) */
     uint8_t *a1_pb;    /* pitch pointer cursor for the -4 pull-back long's first tile */
     uint16_t pbDup;    /* 1 = pull-back is off-pitch -> repeat tile 0 (the old verge case) */
@@ -520,7 +520,7 @@ void ScrollYUpdateRowsAndBlit(void)
         uint16_t tileRow = (uint16_t)(_cameraY.s.i + d5) >> TILE_SHIFT_X;
         uint32_t pitchRowOff = (uint32_t)tileRow * PITCH_PTR_ROW_BYTES;
         a1 += pitchRowOff;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         a1_verge = a1;   /* tile column 0 = the verge (pitch-x 0) */
 #endif
         uint16_t tileCol = (uint16_t)_cameraX.s.i >> TILE_SHIFT_X;
@@ -556,7 +556,7 @@ void ScrollYUpdateRowsAndBlit(void)
         a3 += yByteOff;
     }
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     /* Source for the FMODE -4 pull-back long (see the per-row write in the CPU loop
      * below): the two 16px pitch tiles immediately LEFT of the 32px-aligned fill
      * start. `a1 - a1_verge` is the fill's start tile column x4 (always a multiple
@@ -610,7 +610,7 @@ void ScrollYUpdateRowsAndBlit(void)
     /* ---- Init mask blit accumulators ---- */
     maskBlitDestPtr = (uint32_t)a3;
     blitWordCount = d6 + 1;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     /* The mask copy takes the pull-back long too: the whole 52-byte plane row from
      * a3-4, not the 48 bytes from a3.
      *
@@ -638,7 +638,7 @@ void ScrollYUpdateRowsAndBlit(void)
         int16_t wordIdx = d6;
         uint8_t *a1_saved = a1;
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         /* FMODE -4 pull-back long (32px / 2 tiles, at byte xByteOff-4 = a3-4).
          *
          * UpdatePlanePtrsAndBlitParams points the bitplane fetch one long EARLIER
@@ -681,7 +681,7 @@ void ScrollYUpdateRowsAndBlit(void)
         }
 #endif
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         /* One row, two tiles at a time, in LONGS (2026-10-14). The fill is 24 words =
          * 12 tile pairs and starts 4-byte aligned, and the A1200's chip bus is 32 bits:
          * per plane, one long [left tile's word | right tile's word] to the row and one
@@ -779,7 +779,7 @@ void ScrollYUpdateRowsAndBlit(void)
         if (d3 == TILE_SIZE) {
             /* Crossed tile boundary — advance pitch pointer row */
             a1 += PITCH_PTR_ROW_BYTES;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             a1_verge += PITCH_PTR_ROW_BYTES;   /* keep the verge (tile 0) in step */
             a1_pb    += PITCH_PTR_ROW_BYTES;   /* and the pull-back source tiles */
 #endif
@@ -812,7 +812,7 @@ void ScrollYUpdateRowsAndBlit(void)
     } while (rowCount >= 0);
 
     /* ---- Blitter mask copy: frontbuffer → mask buffer ---- */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     /* Not on AGA: the bobs are undrawn from the rows' twins (undrawTwin, display.h),
      * which the loop above has just written. */
     (void)maskBlitDestPtr; (void)blitWordCount;
@@ -888,10 +888,10 @@ void ScrollYUpdateRowsAndBlit(void)
         waitBlit();
         BLT_W(_custom->bltsize, bltsize);
     }
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 }
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* ================================================================
  * ScrollYVergeRefresh
  *
@@ -954,4 +954,4 @@ void ScrollYVergeRefresh(void)
         }
     } while (--rowCount >= 0);
 }
-#endif /* AGA && !SWOS_SDL_BUILD */
+#endif /* AGA && !SWOS_CHUNKY_BUILD */

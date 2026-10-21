@@ -51,7 +51,7 @@
  */
 #include "jag_graphics.h"
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -764,4 +764,4 @@ void           JagGfx_TeamTable(const uint16_t *amiga16, uint16_t *out256)
     (void)amiga16; (void)out256;
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

@@ -8,7 +8,7 @@
 #ifndef AUDIO_SFX_FILTER_H
 #define AUDIO_SFX_FILTER_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdint.h>
 
@@ -33,5 +33,5 @@ void Audio_SetSfxFilter(AudioSfxFilter filter);
 typedef void (*AudioSfxObserver)(uint8_t kind, uint8_t channel, uint16_t id);
 void Audio_SetSfxObserver(AudioSfxObserver observer);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* AUDIO_SFX_FILTER_H */

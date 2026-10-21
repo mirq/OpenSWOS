@@ -450,7 +450,7 @@ typedef char _charstblhdr_size_check[(sizeof(CharsTableHeader) == 14) ? 1 : -1];
  * On Amiga and on any 4:3 display the two are identical, so the m68k codegen
  * and the classic view are unchanged.
  * -------------------------------------------------------------------------- */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 int16_t Render_CameraX(void);
 /* Same origin in 16.16 — the presenter's sub-pixel shift needs the fraction,
  * which under the scaled map is most of the per-frame motion. */

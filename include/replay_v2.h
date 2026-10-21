@@ -14,7 +14,7 @@
 #ifndef REPLAY_V2_H
 #define REPLAY_V2_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "swos_types.h"
 
@@ -148,5 +148,5 @@ void    ReplayV2_ViewTestRun(void);
 /* sprites.c DrawQueuedSprites: a world sprite the live match drew, for the trace. */
 void    ReplayTrace_LiveSprite(int16_t ordinal, int16_t x, int16_t y);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* REPLAY_V2_H */

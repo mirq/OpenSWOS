@@ -22,9 +22,9 @@
 
 /* ---- which platform is this binary for? ----------------------------------
  * The Amiga target is the one that defines no OS macro at all (-nostdlib m68k),
- * so it is recognised by the absence of SWOS_SDL_BUILD rather than by a macro
+ * so it is recognised by the absence of SWOS_CHUNKY_BUILD rather than by a macro
  * of its own. */
-#if !defined(SWOS_SDL_BUILD)
+#if !defined(SWOS_CHUNKY_BUILD)
 #  if defined(AGA)
 #    define SWOS_PLATFORM "amiga 68k aga"
 #  else

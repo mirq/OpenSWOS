@@ -8,7 +8,7 @@
 #include "game_types.h"
 #include "display.h"
 #include "intro_chip_ram.h"   /* the sprite pool, for its end */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -57,7 +57,7 @@ extern volatile uint16_t _playHighlightFlag;
 extern uint16_t _useIndividualPlayerSkinColor;
 extern uint32_t _imageStreamBytesLeft;
 extern uint8_t _menuInsBank[];
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern uint8_t _rawAssetLoadBuffer[];
 #endif
 
@@ -73,7 +73,7 @@ extern int16_t LoadFileEx(uint8_t *filename, uint8_t *dest, uint32_t *outFileSiz
  * Amiga bitplane path is byte-identical. */
 static uint16_t s_bankSrcPlanes = NUM_PLANES;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Set for the banks the Jaguar tier provides, cleared for every other: their
  * colours are the Jaguar sheets' own and have to be placed (JagGfx_SheetRemap).
  * Like s_bankSrcPlanes, it follows the bank being loaded, not the build. */
@@ -108,7 +108,7 @@ static void blitDispatch(uint16_t spriteIndex, uint16_t xOffset, uint16_t yOffse
     SpriteGraphics *headerBase;  /* pointer to SpriteGraphics header */
     uint8_t *pixelPtr;           /* working write cursor for pixel/mask data */
     uint16_t wquads;             /* width in 16-pixel tiles */
-#ifndef SWOS_SDL_BUILD
+#ifndef SWOS_CHUNKY_BUILD
     int32_t rowSkip;             /* bytes to skip between source rows */
     uint16_t i, j, p;
     uint16_t *wp;
@@ -138,7 +138,7 @@ static void blitDispatch(uint16_t spriteIndex, uint16_t xOffset, uint16_t yOffse
     /* ---- Write sprite table entry pointer ---- */
     headerBase = (SpriteGraphics *)_imageStreamCursor;
     ((SpriteGraphics **)_spriteGraphicsPtr)[spriteIndex] = headerBase;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     {
         extern int _debug_sprite_load;
         if (_debug_sprite_load) {
@@ -187,7 +187,7 @@ static void blitDispatch(uint16_t spriteIndex, uint16_t xOffset, uint16_t yOffse
     headerBase->sprData = (uint8_t *)(headerBase + 1);
     pixelPtr = (uint8_t *)(headerBase + 1);
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* SDL build: decode the Amiga bitplane source into chunky 8bpp.
      * Each output byte = palette index (0..NUM_COLOURS-1); index 0 is
      * treated as transparent by the renderers. Row stride =
@@ -373,13 +373,13 @@ static void blitDispatch(uint16_t spriteIndex, uint16_t xOffset, uint16_t yOffse
         }
         pixelPtr = (uint8_t *)wp;
     }
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 
 update_cursor:
     /* ---- Update stream cursor and check bounds ---- */
     _imageStreamCursor = pixelPtr;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* The Amiga check depended on `menuInsBank` living immediately
      * past the end of `imageCmdWorkBuf` in BSS, so any walk past the
      * work-buffer's capacity tripped the panic. On our host the
@@ -421,7 +421,7 @@ update_cursor:
 __attribute__((used, externally_visible, optimize("no-tree-loop-distribute-patterns")))
 void ProcessImageCommandStream(const uint16_t *cmdBuffer, uint8_t *workBuffer)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* SWOS_DEBUG_SPRITE_LOAD=1 traces every extract with its hotspot, which is
      * what the onScreen cull reads — useful for comparing our bank's metrics
      * against another release's (docs/TESTS.md). */
@@ -434,7 +434,7 @@ void ProcessImageCommandStream(const uint16_t *cmdBuffer, uint8_t *workBuffer)
     int16_t dstX, dstY;
     uint32_t planesFlag;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* On SDL the file-load opcodes stage raw bitplane data into
      * `rawAssetLoadBuffer` so `frontbufferMaskBuffer` can remain in
      * chunky format. All subsequent blitDispatch calls read from the
@@ -472,7 +472,7 @@ void ProcessImageCommandStream(const uint16_t *cmdBuffer, uint8_t *workBuffer)
                            ((uint32_t)a0[2] << 16) | ((uint32_t)a0[3] << 24);
             const uint8_t *filename = (const uint8_t *)_imageScriptPtrTable[idx];
 #endif
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             if (_debug_sprite_load)
                 fprintf(stderr, "[sprite] LOAD filename=%s\n",
                         filename ? (const char *)filename : "(null)");
@@ -482,7 +482,7 @@ void ProcessImageCommandStream(const uint16_t *cmdBuffer, uint8_t *workBuffer)
              * raw bitplane load into `rawAssetLoadBuffer` so the chunky
              * `frontbufferMaskBuffer` isn't clobbered between sprite
              * extractions. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             {
                 uint32_t bankSize = 0;
                 while (LoadFileEx((uint8_t *)filename, _rawAssetLoadBuffer, &bankSize) != 0)
@@ -529,7 +529,7 @@ void ProcessImageCommandStream(const uint16_t *cmdBuffer, uint8_t *workBuffer)
             const uint8_t *filename = *(const uint8_t *const *)ptr;
 #endif
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             {
                 uint32_t bankSize = 0;
                 while (LoadFileEx((uint8_t *)filename, _rawAssetLoadBuffer, &bankSize) != 0)
@@ -774,7 +774,7 @@ void ProcessImageCommandStream(const uint16_t *cmdBuffer, uint8_t *workBuffer)
      * to yet at this point — so the copy would just overwrite mask
      * contents with whatever zero-initialised bytes were in the
      * frontbuffer. Skip it. */
-#ifndef SWOS_SDL_BUILD
+#ifndef SWOS_CHUNKY_BUILD
     {
         const uint16_t *srcPtr = (const uint16_t *)_frontbufferBasePtr;
         uint16_t *dstPtr = (uint16_t *)_frontbufferMaskBuffer;

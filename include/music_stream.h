@@ -5,7 +5,7 @@
 #ifndef MUSIC_STREAM_H
 #define MUSIC_STREAM_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdint.h>
 
@@ -20,5 +20,5 @@ void    MusicStream_Render(int16_t *out, int32_t frames, int32_t rate, int32_t g
 /* Whether sound_dos/<name>.mp3 is there (no lock needed). */
 int32_t MusicStream_Exists(const char *name);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* MUSIC_STREAM_H */

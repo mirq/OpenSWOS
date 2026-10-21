@@ -2050,4 +2050,4 @@ void ReplayV2_ViewTestRun(void)
     exit(code);
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

@@ -94,7 +94,7 @@ int16_t StringEquals(const uint8_t *s1, const uint8_t *s2)
 __attribute__((used, externally_visible))
 uint8_t *StringCopy(const uint8_t *src, uint8_t *dst)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Guard against NULL `src`, which can happen when a zero-stubbed
      * pointer table hands out a null entry (e.g. defaultNamesTable
      * before we populate it). The original Amiga code assumed SWOS2.s

@@ -18,7 +18,7 @@
 #ifndef NETPLAY_LOBBY_H
 #define NETPLAY_LOBBY_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "swos_types.h"
 #include "game_types.h"
@@ -151,5 +151,5 @@ int32_t            NetplayLobby_Rematch(const char *notice);
  * A match that ended early is played again. */
 void               NetplayLobby_MatchPlayed(int32_t completed, int32_t goals1, int32_t goals2);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* NETPLAY_LOBBY_H */

@@ -9,7 +9,7 @@
 #include "game_types.h"
 #include "play_match_menu.h"
 #include "string_utils.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "uniform.h"        /* a kit chosen for this match (UNIFORM screen) */
 #endif
 
@@ -286,7 +286,7 @@ void InitGameSaveTeams(TeamGame *leftTeam, TeamGame *rightTeam)
      * and the fire state can update. The hold doubles as the
      * stadium-screen visible duration the original Amiga gets for
      * free from the same release-wait. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     {
         extern void WaitForVSync(void);
         for (;;) {
@@ -740,7 +740,7 @@ void SetupPlayers(TeamFileEx *team1, TeamFileEx *team2, int16_t maxSubs,
 
     _careerTeamCoachOnly = 0;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* A kit chosen on the UNIFORM screen is for one match: whatever was chosen before
      * the last one is forgotten before this one's team screens come up. */
     Uniform_Clear();
@@ -944,7 +944,7 @@ void InitAndPlayGame(TeamFileEx *team1, TeamFileEx *team2) {
     if (_trainingGame != 0) {
         StringCopy(_aTraining, _gameName);
     } else {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         extern int _gArcadeMode;
         extern uint8_t _aArcadeMatchName[];   /* "GOLDEN GOAL" (arcade.c) */
         if (_gArcadeMode)
@@ -966,7 +966,7 @@ void InitAndPlayGame(TeamFileEx *team1, TeamFileEx *team2) {
     _secondLeg = 0;
     _playing2ndGame = 0;
     _isGameFriendly = 1;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     {
         /* An online match's cup rules (the lobby's), put back after the clear. */
         extern void NetplaySetup_TakeTieRules(void);
@@ -1091,7 +1091,7 @@ void InitializeInGameTeamsAndStartGame(int16_t randomizePitch, int16_t minSubs,
         _team2Computer = 0x00FF;
 
     /* Set secondary colors for both teams */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     {
         /* The kits come from the teams -- or, for a side that chose one on the UNIFORM
          * screen, from that choice, written over both kits of a COPY of the team's
@@ -1147,7 +1147,7 @@ void InitializeInGameTeamsAndStartGame(int16_t randomizePitch, int16_t minSubs,
     /* Initialize in-game team structures */
     InitInGameTeamStructure((TeamFileEx *)team1, &_topTeamInGame, &_team1AppPercent);
     InitInGameTeamStructure((TeamFileEx *)team2, &_bottomTeamInGame, &_team2AppPercent);
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* The eleven each side kicks off with, in line-up order, for SWOS.log: a match
      * report then says who was where (the roll for a contested ball goes by line-up
      * slot, docs/BALL_CONTEST.md), and a line-up that did not reach the match shows. */
@@ -1263,7 +1263,7 @@ void InitializeInGameTeamsAndStartGame(int16_t randomizePitch, int16_t minSubs,
 post_match:
     {
         int doMenuMusic = 1;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         /* Arcade restarts its own (HERO) attract music and returns to the attract
          * loop, so skip loading + playing menu music here — a redundant reconfigure
          * of the shared RJP1 player right before HERO takes it over. */

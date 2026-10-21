@@ -28,7 +28,7 @@ void AssetLoaderResetState(void)
     _assetLoaderWorkPtr = 0;
 }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern FixedPoint _cameraX;
 extern FixedPoint _cameraY;
 extern void SwapBuffersAndCameraViewState(void);
@@ -39,7 +39,7 @@ extern int Platform_VBlank(void);
 __attribute__((used, externally_visible))
 void WaitForVSync(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* On the Amiga, WaitForVSync was a busy spin on `waitingInterrupt`
      * which the Level-3 ISR cleared after running the buffer-swap +
      * camera-restore sequence. On the SDL host we run the buffer swap

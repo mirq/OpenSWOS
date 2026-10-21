@@ -9,7 +9,7 @@
 #include "endian_helpers.h"
 #include "swos_types.h"
 #include "dos_mode.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "dos_graphics.h"
 #include "jag_graphics.h"   /* DosGfx_ParsePitchMap, DOS_TILE_BYTES */
 #include "pitch_map.h"      /* [graphics] pitch_maps: the picture from a .tmj */
@@ -71,7 +71,7 @@ uint8_t *_s_pitchFullPtrs[PITCH_POINTER_COUNT];
  * and garbled the whole crowd (only tiles using indices 0..15 came out right).
  * OCS keeps the 16-entry 4-bit table. The 256-entry table is filled to identity
  * at load in FixupAndColorPitchFile (before slots 10/11 are set to kit colours). */
-#if defined(AGA) || defined(SWOS_SDL_BUILD)
+#if defined(AGA) || defined(SWOS_CHUNKY_BUILD)
 static uint16_t pitchFansConvertTable[256];
 #else
 static uint16_t pitchFansConvertTable[16] = {
@@ -94,7 +94,7 @@ static uint16_t pitchFansConvertTable[16] = {
  *   convTable   = color remap table: old_index → new_index
  * ================================================================ */
 __attribute__((used, externally_visible))
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* What the fan recolour gave each tile of the bank: the colours kit slots 10 and
  * 11 became, for a pitch drawn from a map to give ITS tile for the same cell the
  * same kit (src/pitch_map.c). The first recolour of a tile is the one recorded --
@@ -118,7 +118,7 @@ int32_t Pitch_FanTileKit(const uint8_t *tile, uint8_t *slot10, uint8_t *slot11)
 
 void AdjustFanColor(uint8_t *destPattern, const uint16_t *convTable)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     {
         extern uint8_t _pitchChunkyBuffer[];
         if (destPattern >= _pitchChunkyBuffer) {
@@ -176,7 +176,7 @@ void AdjustFanColor(uint8_t *destPattern, const uint16_t *convTable)
 #endif
 }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* ================================================================
  * dos_load_pitch  (SDL + gDosGraphics only)
  *
@@ -280,9 +280,9 @@ static void dos_load_pitch(uint16_t mapIndex)
      * FixupAndColorPitchFile. */
     PitchMap_Load(_gDosGraphicsDir, pitchNum);
 }
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Unpacked byte size of the pitch file LoadPitchMap last read, so the chunky
  * decode in FixupAndColorPitchFile can size the tile region. 0 = unknown. */
 static uint32_t s_pitchFileSize;
@@ -331,9 +331,9 @@ static uint16_t pitchTilePlanes(const uint32_t *pitchPtrs, uint32_t baseLow,
     }
     return anyHalfStride ? 4 : (uint16_t)PITCH_NUM_PLANES;
 }
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* The pitch's tiles again, in FAST RAM, for the CPU (2026-10-14). The blitter must read
  * them from the chip-RAM pitch buffer, but the vertical scroll copies its new rows with
  * the CPU (ScrollYUpdateRowsAndBlit), and every read it makes from chip RAM waits for a
@@ -361,7 +361,7 @@ static void copyPitchTilesToFast(void)
 }
 #endif
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* ================================================================
  * loadPitchMap2020 -- OPTIONS -> PITCHES = 2020
  *
@@ -406,14 +406,14 @@ static int32_t loadPitchMap2020(uint16_t mapIndex)
 __attribute__((used, externally_visible))
 void LoadPitchMap(uint16_t mapIndex)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     PitchMap_Drop();                /* until a map is loaded for this pitch */
     if (_gDosGraphics) {
         dos_load_pitch(mapIndex);
         return;
     }
 #endif
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     if (_pitchStyleOption && loadPitchMap2020(mapIndex))
         return;
 #endif
@@ -423,10 +423,10 @@ void LoadPitchMap(uint16_t mapIndex)
 
     result = LoadFileEx(filename, _pitchDatBuffer, &fileSize);
     (void)result;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     s_pitchFileSize = fileSize;   /* -> pitchTilePlanes (source bitplane depth) */
 #endif
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     s_pitchTileBytes = fileSize > PITCH_POINTER_COUNT * 4u ? fileSize - PITCH_POINTER_COUNT * 4u : 0u;
     g_pitchTilesFastDelta = 0;          /* stale until FixupAndColorPitchFile copies it */
 #endif
@@ -460,7 +460,7 @@ void FixupAndColorPitchFile(void)
     TeamGame *teamData;
     uint16_t kitPrimary, kitSecondary;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* DOS pitch: s_pitchFullPtrs was already built in LoadPitchMap from the BLK
      * tile bank + DAT tile map, so there is no bitplane pointer table to
      * relocate (Step 1) or decode (Step 1b) — but everything from Step 2 on
@@ -470,7 +470,7 @@ void FixupAndColorPitchFile(void)
      * This used to `return` here, on the grounds that "AdjustFanColor indexes a
      * 16-entry LUT with pixel values that can be 0..255". That is no longer
      * true on this target: pitchFansConvertTable is 256 entries under
-     * `AGA || SWOS_SDL_BUILD` and is filled to identity before slots 10/11 are
+     * `AGA || SWOS_CHUNKY_BUILD` and is filled to identity before slots 10/11 are
      * set, so remapping 256-colour data is safe and touches nothing else.
      *
      * The symptom that found it: with dos_graphics on, the crowd came out with
@@ -504,7 +504,7 @@ void FixupAndColorPitchFile(void)
      * which gets relocated correctly. */
     for (int32_t k = 0; k < (int32_t)PITCH_POINTER_COUNT; k++)
     {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         uint32_t offsetBE = BE_READ_U32((const uint8_t *)&pitchPtrs[k]);
         pitchPtrs[k] = offsetBE + baseAddr;
 #else
@@ -513,7 +513,7 @@ void FixupAndColorPitchFile(void)
     }
     (void)i;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Step 1b (SDL only): decode each TILE_SIZE-byte NUM_PLANES-bitplane tile
      * to a 256-byte 8bpp chunky tile. Chunky tiles live in pitchChunkyBuffer,
      * indexed by **original Amiga tile index** (offset / TILE_SIZE) — NOT by
@@ -663,7 +663,7 @@ void FixupAndColorPitchFile(void)
      * On Amiga, s_pitchFullPtrs is NOT populated (Step 1b is gated
      * out) — use the in-buffer slot table directly, matching the
      * original asm. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     uint8_t **fanGroupA = &_s_pitchFullPtrs[0];
     uint8_t **fanGroupB = &_s_pitchFullPtrs[FAN_PTR_TABLE_OFFSET / 4];
 #else
@@ -681,7 +681,7 @@ void FixupAndColorPitchFile(void)
         _fansSidesSwapped = 1;
     }
 
-#if defined(AGA) || defined(SWOS_SDL_BUILD)
+#if defined(AGA) || defined(SWOS_CHUNKY_BUILD)
     /* Fill the 256-entry remap to identity so AdjustFanColor (which indexes it
      * with an 8-bit crowd colour) preserves every colour except the kit slots
      * 10/11 set below. Without this the crowd is garbled (see table decl). */
@@ -756,7 +756,7 @@ void FixupAndColorPitchFile(void)
         AdjustFanColor(fanGroupA[i], pitchFansConvertTable);
     }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Step 6: catch crowd cells whose tile ISN'T one of those 42.
      *
      * SDL only: s_pitchFullPtrs is the full-width side table built in Step 1b
@@ -861,12 +861,12 @@ void FixupAndColorPitchFile(void)
     if (dosPitch)
         PitchMap_Bake();
 #endif
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     copyPitchTilesToFast();     /* the fans are coloured: the tiles are final */
 #endif
 }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* ================================================================
  * DrawChunkyPitch (SDL only)
  *

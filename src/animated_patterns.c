@@ -20,7 +20,7 @@
 #include "animated_patterns.h"
 #include "game_types.h"
 #include "display.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "pitch_map.h"
 #endif
 
@@ -49,7 +49,7 @@ extern uint8_t  _pitchDatBuffer[];
 extern volatile uintptr_t _frontbufferBasePtr;
 extern uint8_t  _frontbufferMaskBuffer[];
 extern uint8_t  _currentMenu[];
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern uint8_t  _pitchChunkyBuffer[];
 /* On SDL the pitch tile pointers live in pitchChunkyBuffer with a fixed
  * 256-byte chunky stride per tile, whatever the source bitplane depth
@@ -147,7 +147,7 @@ static void drawPatternFromIndex(uint16_t patternIndex)
      * pointer table for the sprite header, and the matching side table
      * for the chunky tile pointer (populated by FixupAndColorPitchFile
      * Step 1b, see pitch.c). */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     {
         /* s_pitchFullPtrs is the pitch.c side table that holds the
          * full-width chunky-tile pointer per slot — populated in
@@ -180,7 +180,7 @@ static void drawPatternFromIndex(uint16_t patternIndex)
     screenX = pixelX - Render_CameraX();
     screenY = pixelY - Render_CameraY();
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* The fan is drawn via DrawSprite16Pixels, whose blit is offset by
      * _menu_draw_x_offset (= WIDE_MARGIN during a widescreen replay, to centre
      * the menu/HUD). The static crowd is drawn by DrawChunkyPitch, which writes
@@ -196,7 +196,7 @@ static void drawPatternFromIndex(uint16_t patternIndex)
 
     /* bounds check. Widescreen draws fan cells across the full frontbuffer width, not just
      * the 4:3 336px window; _screen_width == 336 on 4:3 / Amiga so this is unchanged there. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     if (screenX >= _screen_width || screenY >= SCREEN_HEIGHT)
 #else
     if (screenX >= 336 || screenY >= SCREEN_HEIGHT)
@@ -205,7 +205,7 @@ static void drawPatternFromIndex(uint16_t patternIndex)
     if (screenX <= (int16_t)0xFFF0 || screenY <= (int16_t)0xFFF0)
         return;
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     /* AGA: the fan is an 8-plane PITCH tile (16 rows of NUM_PLANES words), but sprite 137
      * goes through the 4-plane sprite path, which reads it at half its row stride (the
      * crowd drawn as striped rows) -- and, drawing no-wrap into what it takes for a
@@ -277,7 +277,7 @@ static void resetAnimatedPatterns(uint32_t *a0, int16_t count)
 {
     int16_t i;
     uint32_t baseAddr = ANIM_TILE_BASE;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     extern uint8_t *_s_pitchFullPtrs[];
     extern uint8_t _pitchChunkyBuffer[];
     uint32_t *pitchBase = (uint32_t *)(void *)_pitchDatBuffer;
@@ -288,7 +288,7 @@ static void resetAnimatedPatterns(uint32_t *a0, int16_t count)
         if (d0 != 0 && d0 <= ANIM_MAX_TILE_OFFSET && !(d0 & ANIM_TILE_SIZE)) {
             /* animated variant (even tile index) → subtract one tile → static */
             *a0 -= ANIM_TILE_SIZE;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             /* Mirror the toggle into s_pitchFullPtrs — see comment in
              * DrawAnimatedPatterns. The slot index is the byte offset
              * of `a0` from the pitchDatBuffer base divided by 4. */
@@ -331,7 +331,7 @@ ResetAnimatedPatternsForBothTeams(void)
     resetAnimatedPatterns((uint32_t *)((uint8_t *)_pitchDatBuffer + 0x2178), 125);
 }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* ================================================================
  * AnimatedPatterns_SyncTileMirror
  *
@@ -369,7 +369,7 @@ void AnimatedPatterns_SyncTileMirror(int32_t first, int32_t count)
  * Selects random tiles from the pitch grid and toggles them between
  * static and animated states.
  * ================================================================ */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* drawFanMirror — widescreen-only fan-animation mirror.
  *
  * The base loop only toggles a 21-column window positioned at cameraX>>4 — the 4:3 view
@@ -527,7 +527,7 @@ DrawAnimatedPatterns(void)
         case 6: goto game_hasnt_started;
         case 7: goto game_in_progress;
         default:
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             /* At match start the replay buffer hasn't been populated yet,
              * so the state word read from it may be garbage in (1..7).
              * Rather than panicking, treat unknown states as "no pattern
@@ -605,7 +605,7 @@ pattern_loop:
             /* active pattern entry: draw once then clear */
             _animatedPatterns[7 - d7] = (int16_t)0xFFFF;
             drawPatternFromIndex((uint16_t)d3);
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             /* The mirror toggles tiles the match hashes and later reads (the base
              * loop's parity test), so it follows the simulation draw width
              * (display.h), not this display's. */
@@ -708,7 +708,7 @@ pattern_loop:
 
                 _animatedPatterns[7 - d7] = d3;
                 *tileEntryPtr = ANIM_TILE_BASE + ((uint32_t)newIndex << ANIM_TILE_SIZE_SHIFT);
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
                 /* On SDL `drawPatternFromIndex` renders from
                  * `s_pitchFullPtrs[d3]` (the 64-bit pitch.c side table)
                  * because the 4-byte pitchDatBuffer slots can't hold a
@@ -727,7 +727,7 @@ pattern_loop:
                 }
 #endif
             }
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             if (_sim_draw_width > SCREEN_WIDTH)
                 drawFanMirror(d3, 1, d4);   /* widescreen: mirror the toggle into the right half */
 #endif

@@ -5,7 +5,7 @@
 #ifndef DOS_MUSIC_H
 #define DOS_MUSIC_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdint.h>
 
@@ -32,5 +32,5 @@ void    DosMusic_Render(int16_t *out, int32_t frames, int32_t rate, int32_t gain
  * found. Returns the number of failures. */
 int32_t DosMusic_SelfTest(void);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* DOS_MUSIC_H */

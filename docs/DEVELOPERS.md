@@ -17,7 +17,9 @@ assembly has been translated to C, and **one source tree builds three targets**:
 
 On SDL the OCS/AGA chipset, Paula audio, and joystick I/O are emulated by thin
 SDL2 shims; on Amiga the same C drives the real hardware. `src/` and `include/`
-are shared — platform divergence is expressed with `#ifdef SWOS_SDL_BUILD`, and
+are shared — platform divergence is expressed with `#ifdef SWOS_CHUNKY_BUILD`
+(the portable chunky target: no custom chips) and `#ifdef SWOS_SDL_BUILD` (the
+SDL library itself; see `include/swos_platform.h`), and
 a short list of SDL-only files is excluded from the m68k build by name
 (`SDL_ONLY_SRCS` in `Makefile.amiga`).
 

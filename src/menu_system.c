@@ -3,7 +3,7 @@
  * SWOS Amiga C/68000 Reversed by Ben Baker (https://github.com/benbaker76)
  * SWOS DOS Reversed by Zlatko Karakaš (https://github.com/zlatkok)
  */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include <stdio.h>   /* SWOS_MENU_NAV_LOG */
 #include <stdlib.h>
 #endif
@@ -351,7 +351,7 @@ read_next_key:
 /* ================================================================
  * BlitterCopyOverlayToScreen — hardware blitter copy
  * ================================================================ */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* SDL build: the Amiga blitter is a no-op (writes go to a stub
  * Custom chip struct), so the original asm-style routine below would
  * silently do nothing. Replace with a plain memcpy of the full
@@ -457,7 +457,7 @@ void BlitterCopyOverlayToScreen(void)
     BLT_W(_custom->bltsize, 0x16);
 #endif
 }
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 
 /* ================================================================
  * DrawMenuItemBackground — fills rectangle via FillRectangle
@@ -479,7 +479,7 @@ void DrawMenuItemBackground(uint16_t color, uint16_t x, uint16_t y, uint16_t w, 
  * byte). These two rectangles take an x in pixels: on AGA, where the offset is 2 bytes,
  * adding it as 2 pixels put them 14px left of the text they clear -- over the end of
  * the button beside it (ABORT / EXIT next to "SELECT 2 MORE TEAMS"). */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #define MENU_DRAW_X_OFFSET_PX   (_menu_draw_x_offset)
 #else
 #define MENU_DRAW_X_OFFSET_PX   (_menu_draw_x_offset * 8)
@@ -584,7 +584,7 @@ void DrawBackAllItems(uint16_t maxItems, MenuEntry *firstEntry)
 __attribute__((used, externally_visible))
 void CallDrawMenuItem(MenuEntry *entry)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* The Amiga "double-flush" pattern (draw, vsync, draw, vsync) is
      * how the original code keeps both buffers in sync after a partial
      * redraw — each draw goes to one buffer; the swap inside vsync
@@ -821,7 +821,7 @@ fg_sprite_draw:
         SpriteGraphics *sprEntry;
         uint16_t cx, cy;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         /* The sprite graphics table (`spriteGraphics`) is populated
          * from menus.raw etc. during the Amiga bootstrap; we haven't
          * wired up that pipeline, so the table is a zero-filled stub.
@@ -856,7 +856,7 @@ fg_text_common:
     flags = entry->stringFlags;
     flagsMask = (flags & STR_FLAGS_MASK) >> 2;
     charTable = (uint8_t *)_charTables[flagsMask / 4];
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     if (!charTable) goto post_draw_callback;
 #endif
     charHeight = *(uint16_t *)(charTable + CHARTABLE_CHARHEIGHT);
@@ -1345,7 +1345,7 @@ void DrawMenu(void)
     /* Widescreen: center all menu drawing. Set once here; every partial redraw
      * (CallDrawMenuItem, DrawMultipleItems, selector, custom callbacks, ...)
      * inherits it. The in-match game loop resets it to 0 for the world. */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     /* AGA FMODE widen (PLANE_STRIDE 44->52) left the whole menu FOREGROUND 16px
      * (= AGA_MENU_FG_SHIFT_BYTES*8) left of the stock/OCS item position -- verified
      * pixel-for-pixel against a real OCS capture (the entry boxes AND the logo
@@ -1625,7 +1625,7 @@ void MenuProc(void)
     uint16_t d7;
     int16_t dir;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* If Platform_RequestQuit flagged a quit from the SDL event pump,
      * longjmp back to FrontEndMainLoop now — short-circuits the entire
      * nested menu state machine so we don't flicker between submenus
@@ -1740,7 +1740,7 @@ void MenuProc(void)
          * in the chain. The latch clears the next time seasonUpdateInProgress
          * drops to 0 (see top of MenuProc), so a single press skips the whole
          * sequence without the user having to hold the button. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         if (_pauseSkipRequested)
             s_seasonSkipLatched = 1;
 #else
@@ -1770,7 +1770,7 @@ void MenuProc(void)
     SWOS_AUTOSKIP_LOG("MenuProc: <- CallMenuOnSelect (exitMenu after=%u)", (unsigned)_exitMenu);
 
 no_event_or_done:
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Menu navigation log: every direction the menu sees, what it walked through and
      * where the cursor ended up -- for a cursor that will not move on one machine
      * and moves on every other (the log-in screen, 2026-09-24). ON by default in a
@@ -1809,7 +1809,7 @@ no_event_or_done:
         int8_t navOrd;
 
         navOrd = *((int8_t *)(navBase + 8 + fieldOff));
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         if (s_navLog)
             fprintf(stderr, "[menu-nav]   #%u dir %u -> %d%s\n", (unsigned)selectedEntry->ordinal,
                     (unsigned)dirIdx, (int)navOrd, navOrd == -1 ? " (no link: stays)" : "");
@@ -1820,14 +1820,14 @@ no_event_or_done:
         for (;;) {
             MenuEntry *cand = CalcMenuEntryAddress((uint16_t)(uint8_t)navOrd);
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             if (s_navLog)
                 fprintf(stderr, "[menu-nav]   #%d%s%s\n", (int)navOrd,
                         cand->isInvisible ? " invisible" : "", cand->isDisabled ? " disabled" : "");
 #endif
             if (cand->isDisabled == 0 && cand->isInvisible == 0) {
                 menu->selectedEntry = cand;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
                 if (s_navLog)
                     fprintf(stderr, "[menu-nav]   moved to #%u\n", (unsigned)cand->ordinal);
 #endif
@@ -1842,7 +1842,7 @@ no_event_or_done:
                 int8_t dirField = *((int8_t *)((uint8_t *)cand + 12 + fieldOff));
                 if (dirField == -1) {
                     navOrd = *((int8_t *)((uint8_t *)cand + 8 + fieldOff));
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
                     if (s_navLog && navOrd == -1)
                         fprintf(stderr, "[menu-nav]   dead end: stays on #%u\n",
                                 (unsigned)selectedEntry->ordinal);
@@ -2088,7 +2088,7 @@ void DrawMultipleItems(uint16_t maxItems, MenuEntry *firstEntry)
 __attribute__((used, externally_visible))
 void DrawMenuItemsWaitForVSync(const int16_t *list)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* See CallDrawMenuItem comment — collapse the Amiga double-flush
      * to single vsync + memcpy sync on SDL so we present once instead
      * of twice per partial redraw. */
@@ -2114,7 +2114,7 @@ void DrawMenuItemsWaitForVSync(const int16_t *list)
 __attribute__((used, externally_visible))
 void CallDrawMultipleItems(uint16_t maxItems, MenuEntry *firstEntry)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* See CallDrawMenuItem comment — collapse double-flush. */
     DrawMultipleItems(maxItems, firstEntry);
     WaitForVSync();

@@ -11,7 +11,7 @@
 #ifndef NETPLAY_SETUP_H
 #define NETPLAY_SETUP_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "swos_types.h"
 #include "game_types.h"
@@ -44,5 +44,5 @@ void     NetplaySetup_TakeTieRules(void);
  * require equality. Part of --netplay-selftest. 0 on success. */
 int32_t  NetplaySetup_SelfTest(void);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* NETPLAY_SETUP_H */

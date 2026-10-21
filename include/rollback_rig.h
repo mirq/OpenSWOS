@@ -7,7 +7,7 @@
 #ifndef ROLLBACK_RIG_H
 #define ROLLBACK_RIG_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "swos_types.h"
 
@@ -39,5 +39,5 @@ void     Rollback_FrameBoundary(uint32_t frame);
 /* End of the run: write the reports; the process exit code (0 pass, 2 fail). */
 int      Rollback_Finish(void);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* ROLLBACK_RIG_H */

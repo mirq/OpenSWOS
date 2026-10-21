@@ -109,7 +109,7 @@ extern volatile struct Custom *_custom;
  * between two of its blits the blitter is idle for a moment while the blitter interrupt
  * starts the next one, so a wait on BBUSY alone could slip a blit in between and have its
  * registers overwritten. Every blitter wait goes through this. */
-#if !defined(SWOS_SDL_BUILD)
+#if !defined(SWOS_CHUNKY_BUILD)
 extern volatile uint16_t g_blitQActive;
 #define BLIT_BUSY() (g_blitQActive | (_custom->dmaconr & (1u << 14)))
 #else
@@ -237,7 +237,7 @@ extern volatile uint16_t g_blitQActive;
  * per-plane path for anything not stored 8 deep with a linked mask. */
 static inline int16_t spriteIsPadded8(int16_t ordinal)
 {
-#if defined(AGA) && !defined(SWOS_SDL_BUILD) && (SWOS_SPRITE_PLANES != 8)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD) && (SWOS_SPRITE_PLANES != 8)
     static const uint16_t runs[][2] = {
         { 0x0E3, 0x100 }, { 0x148, 0x165 }, { 0x1AD, 0x1CA }, { 0x212, 0x22F },
         { 0x277, 0x294 }, { 0x2DC, 0x2F9 }, { 0x341, 0x358 }, { 0x37B, 0x392 },
@@ -262,7 +262,7 @@ static inline int16_t spriteIsPadded8(int16_t ordinal)
  * is walked at 4-plane stride, not the playfield's 8. */
 static inline uint16_t spriteNumPlanes(int16_t ordinal)
 {
-#if defined(AGA) && !defined(SWOS_SDL_BUILD) && (SWOS_SPRITE_PLANES != 8)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD) && (SWOS_SPRITE_PLANES != 8)
     if ((uint16_t)ordinal >= SOCCER_S_SPRITE_FIRST &&
         (uint16_t)ordinal <= SOCCER_S_SPRITE_LAST)
         return PITCH_NUM_PLANES;   /* SOCCER_S bank is genuinely 8-plane */
@@ -305,7 +305,7 @@ static inline uint16_t spriteNumPlanes(int16_t ordinal)
  * at the camera (AGA_PITCH_DISPLAY_SHIFT_PX, display.c): the long fetched to the left
  * stays under the fine-scroll delay, and what it holds is never seen. The name is kept
  * (as 0) where drawing code adds it. */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 #define SCROLL_LEFT_MARGIN_BYTES    0
 #define PLANE_STRIDE                48
 #else
@@ -450,7 +450,7 @@ static inline uint16_t DetectBankPlanes(uint32_t byteSize, uint32_t planeRowByte
  * (byte = palette index, 0 = transparent). */
 
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Widescreen: the frontbuffer STRIDE (= visible width) is RUNTIME — _screen_width is
  * 336 (normal, == SCREEN_WIDTH) or WIDESCREEN_WIDTH (widescreen), set once at startup
  * from gWidescreen. The buffers are ALLOCATED at the max stride so their array size
@@ -506,7 +506,7 @@ extern int _screen_height;
  * (GAMEPLAY.md §25.4 notes that pinning this to 336x272 regardless of the
  * render width is the fix for widescreen changing CPU player selection; that
  * is a deliberate gameplay change and is NOT what the default does.) */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern int16_t _sim_view_width;
 extern int16_t _sim_view_height;
 #else
@@ -531,7 +531,7 @@ extern int16_t _sim_view_height;
  * it to one width both peers agreed (the wider of the two, P2PLink_AgreedSimWidth):
  * two players on a 4:3 and a 16:9 screen then play the same match, the narrower one
  * animating a margin it does not show. docs/NETPLAY.md, "One simulation width". */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern int32_t _sim_draw_width;
 #else
 #define _sim_draw_width                 SCREEN_WIDTH
@@ -551,7 +551,7 @@ extern int32_t _sim_draw_width;
  * port can actually draw (a 272-line render driven by the DOS Y clamp of 664 would scroll
  * past the bottom of the pitch). The replay rig already sets _sim_view_* to the
  * recording's own 320x200, so a DOS recording is unaffected: the two agree there. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #define SIM_CAM_AIM_WIDTH     ((int16_t)(_gDosGameplay ? 320 : _sim_view_width))
 #define SIM_CAM_AIM_HEIGHT    ((int16_t)(_gDosGameplay ? 200 : _sim_view_height))
 #else
@@ -582,7 +582,7 @@ extern int32_t _sim_draw_width;
  * the DOS view with widescreen on (320x200 simulated, 272 lines shown), where it is 72.
  * A HUD element anchored to the BOTTOM of the screen adds it (the result panel, the
  * name bar's bottom corners); one anchored to the top does not. Drawing only. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #define RENDER_EXTRA_Y        ((int16_t)(_screen_height > _sim_view_height ? \
                                          _screen_height - _sim_view_height : 0))
 #else
@@ -625,7 +625,7 @@ extern int32_t _sim_draw_width;
  * size macro stay 1x (so their memsets/copies and PITCHFILE_MAX_SIZE are
  * unchanged). The scroll blits double-write each row into the mirror at offset
  * FB_MIRROR_OFFSET_BYTES. See docs/AGA.md section 12. */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* +2, not +1: the menus' mask buffer lives in the second buffer's mirror half from row
  * SCREEN_HEIGHT+1 on, FRONTBUFFER_TOTAL_LINES rows (swos_globals.c). */
 #define FRONTBUFFER_DISPLAY_LINES       (2 * SCREEN_HEIGHT + 2)
@@ -633,7 +633,7 @@ extern int32_t _sim_draw_width;
 #else
 #define FRONTBUFFER_DISPLAY_LINES       (SCREEN_HEIGHT + 1)
 #endif
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* Where a bob's background is undrawn FROM: its twin row in the other half of the 2x-tall
  * buffer (2026-10-14; it was the separate 1x mask buffer). Nothing but the pitch is ever
  * in a twin: every bob, text and box is drawn inside the window [cameraYMod320, +272),
@@ -678,7 +678,7 @@ extern int _menu_draw_x_offset;
  * Only LEFT/RIGHT-anchored HUD elements need this. Anything centred in the old
  * box already resolves to screen centre (WIDE_MARGIN + 168 == _screen_width/2),
  * so the team names, score digits and dash are left alone. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #define HUD_WIDTH                       (_screen_width < WIDESCREEN_WIDTH \
                                          ? _screen_width : WIDESCREEN_WIDTH)
 #define HUD_MARGIN                      ((_screen_width - HUD_WIDTH) / 2)
@@ -750,7 +750,7 @@ extern int _menu_draw_x_offset;
 #ifndef AGA_FMODE
 #define AGA_FMODE 3
 #endif
-#if defined(AGA) && !defined(SWOS_SDL_BUILD) && AGA_FMODE == 3
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD) && AGA_FMODE == 3
 int16_t AGA_Fm3Active(void);
 #define AGA_FM3()                   AGA_Fm3Active()
 #else
@@ -786,7 +786,7 @@ int16_t AGA_Fm3Active(void);
 #define SPRITE_BLTSIZE_W2           ((SPRITE_BLIT_HEIGHT_LINES << 6) | 2)
 
 /* ---- File info ---- */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* Dedicated pitch buffer, in chip RAM (the blitter scrolls the pitch from it). The
  * DOS pitches (SWCPICHn.MAP) are <=78 KB; SWOS 2020's (P2020_n.MAP, OPTIONS ->
  * PITCHES) are 197-542 KB, the largest pitch 6 at 554,776 bytes. The room came from

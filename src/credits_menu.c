@@ -15,7 +15,7 @@
  */
 #include "credits_menu.h"
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "menu_load_json.h"
 #include "menu_symbols.h"
@@ -219,4 +219,4 @@ void CreditsMenu_Show(void)
     }
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

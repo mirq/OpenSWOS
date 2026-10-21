@@ -13,7 +13,7 @@
 #ifndef REPLAY_TEST_H
 #define REPLAY_TEST_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "swos_types.h"
 #include "game_types.h"
@@ -98,5 +98,5 @@ uint64_t ReplayTest_ObservableHash(void);
 /* Calls fn once per observable field, with its storage. */
 void     ReplayTest_ForEachObservable(void (*fn)(void *addr, uint32_t size, void *ctx), void *ctx);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* REPLAY_TEST_H */

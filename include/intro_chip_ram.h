@@ -18,7 +18,7 @@
 
 #include "swos_types.h"
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* The SDL RJP1 player is handed the whole bank; the SDL sprite pool is chunky
  * 8bpp and documented to reach ~740 KB (swos_amiga_data_stubs.c). */
 #define TITLE_TUNE_SAMPLES_BYTES  (512u * 1024u)

@@ -57,7 +57,7 @@ enum {
     DOS_EV_INJURY        = 40
 };
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdint.h>
 

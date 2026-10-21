@@ -8,7 +8,7 @@
 #define MINIZ_SWOS_H
 
 #define MINIZ_NO_STDIO                  /* buffers only: no files */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* ZIP archives, in memory: the netplay match report (src/match_report.c) is one
  * zip of both players' logs. The entries carry the time they were written. */
 #else

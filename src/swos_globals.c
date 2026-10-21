@@ -91,7 +91,7 @@ volatile uint32_t bitPlane7BasePtr;
  * quadwords, so a plane row that starts 4 bytes into one shows 64px slices out of order. */
 SWOS_CHIP_BSS uint8_t _frontbufferBase[FRONTBUFFER_DISPLAY_ALLOC_BYTES] __attribute__((aligned(8)));
 SWOS_CHIP_BSS uint8_t _frontbufferBaseAlt[FRONTBUFFER_DISPLAY_ALLOC_BYTES] __attribute__((aligned(8)));
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* The mask buffer (the menus' clean backdrop, and where sprite banks are staged) shares
  * chip RAM with the second frontbuffer's MIRROR half (2026-10-16, 102 KB back) -- as the
  * original shared its buffers by when they are used. Only a match uses the mirror half, and
@@ -110,12 +110,12 @@ __asm__(".globl " _ASM_PFX "_frontbufferMaskBuffer\n"
 #else
 SWOS_CHIP_BSS uint8_t _frontbufferMaskBuffer[FRONTBUFFER_ALLOC_TOTAL_BYTES];
 #endif
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Live frontbuffer stride / visible width: SCREEN_WIDTH (336) or WIDESCREEN_WIDTH,
  * set once at startup from gWidescreen (main.c). 336 = unchanged behaviour. */
 int _screen_width = SCREEN_WIDTH;
 int _screen_height = SCREEN_HEIGHT;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* The SIMULATION view (display.h). Defaults to the port's own geometry; main.c
  * follows _screen_width into it so behaviour is unchanged, and the replay rig
  * overrides it to the geometry a recording was made in. On Amiga these are
@@ -768,7 +768,7 @@ __asm__(
  * Note: sound/sfx.in1 (71500 bytes) loads into poolplyrDatBuffer
  * (52200 bytes) — which overruns by ~19 KB. Fix when sfx path lights up. */
 uint8_t _menuSongData[8  * 1024];
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* The menu music's samples share chip RAM with the END of the pitch buffer (2026-10-16,
  * 64 KB back), as the original's buffers did by when they are used: only the menus play
  * them, and the pitch buffer is only loaded for a match or the highlights -- after the
@@ -1036,7 +1036,7 @@ int16_t _kGoalieSkill0Table[30] = { 0x0007, 0x01A8, -50,    0x0340, 0x00A0, 0x00
  * DMA buffers), corrupting the pitch AND the sound. Sized to the compile-time
  * frontbuffer allocation, which equals PITCHFILE_MAX_SIZE on Amiga and is an
  * upper bound on SDL (PITCHFILE_MAX_SIZE is runtime there). */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* AGA: dedicated 82K buffer (== PITCHFILE_MAX_SIZE), smaller than the
  * frontbuffer, to reclaim chip RAM for the 2x block-B display buffers. The
  * load-size check (pitch.c) rejects any map > PITCHFILE_MAX_SIZE, so a map that

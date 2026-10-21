@@ -40,7 +40,7 @@ uint8_t SaveJson_GetLoadedPrimaryCountryCode(void)
 }
 
 #include <string.h>
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include <stdlib.h>  /* atoi */
 #include <stdio.h>   /* DataJson self-test */
 #endif
@@ -2811,7 +2811,7 @@ int DataJson_LoadTeamArray(const char *json, int len, struct TeamFileEx *out, in
     return i;
 }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "team_db.h"        /* struct TeamDbIds: the ids a teams file states */
 /* Read a whole file into a malloc'd NUL-terminated buffer (*out_len = byte len).
    Caller frees. Returns NULL on any error. */
@@ -4214,7 +4214,7 @@ int DataJson_SelfTest(void)
 
     return (ok && cok && tok && lok && gok) ? 0 : 1;
 }
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 
 /* The named-blob ("blobs":{}) sub-object and the previous base64
  * payload-per-region scheme have been retired. Every region that used
@@ -7845,7 +7845,7 @@ int16_t SaveJson_LoadHighlights(uint8_t *filename, const uint8_t *src_unused,
     /* The rate the match was played at, so playback matches it (see the writer).
      * Absent in files written before this field existed -- those are 50 Hz Amiga
      * recordings, which is file_io.c's default, so leave it alone then. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     {
         /* SDL only: _replayPlaybackFps lives in dos_replay_load.c, which the m68k
          * build filters out (SDL_ONLY_SRCS). The Amiga plays at 50 Hz regardless,

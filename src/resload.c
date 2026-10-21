@@ -11,7 +11,7 @@
  * `FixSnoopBug`, etc.) — those keep their signatures so linking is
  * unchanged.
  * ============================================================ */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "resload.h"
 #include "jag_graphics.h"
@@ -364,7 +364,7 @@ void FixSnoopBug(void)     {}
 void FixMemoryRoutine(void) {}
 uint8_t KBHook(void) { return 0; }
 
-#else  /* !SWOS_SDL_BUILD — Amiga path below */
+#else  /* !SWOS_CHUNKY_BUILD — Amiga path below */
 
 /*
  * resload.c — C port of Resload.s
@@ -1638,4 +1638,4 @@ uint8_t KBHook(void)
     return raw;
 }
 
-#endif  /* !SWOS_SDL_BUILD */
+#endif  /* !SWOS_CHUNKY_BUILD */

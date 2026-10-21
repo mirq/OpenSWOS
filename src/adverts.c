@@ -6,7 +6,7 @@
 #include "adverts.h"
 #include "game_types.h"
 #include "swos_types.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "display.h"   /* WIDE_MARGIN — the second corner flag is widescreen-only */
 #endif
 
@@ -53,7 +53,7 @@ extern uint16_t _bigSIndex;
 /* Sprite arrays in data section */
 extern Sprite   _advertInGameSprites[8]; /* 8 * SPRITE_SIZE bytes */
 extern Sprite   _cornerFlagSprite;       /* SPRITE_SIZE bytes */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern Sprite   _cornerFlagSprite2;      /* widescreen 2nd corner flag — sprite_data.c */
 #endif
 extern Sprite   _big_S_Sprite;           /* SPRITE_SIZE bytes */
@@ -90,7 +90,7 @@ void CopyAdvertisementsData(void)
         _advert3Pointers[i] = table[129 + i]->sprData;
 }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* ================================================================
  * Adverts_ApplyStripLine -- a replay's ad tile, as the match drew it
  *
@@ -291,7 +291,7 @@ void ManageAdvertisements(void)
              * (8 px right + half a row down) instead of vertical scroll. */
             {
                 uint16_t wquads = (uint16_t)gfx->wquads;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
                 uint32_t lineBytes = (uint32_t)wquads * 16;
 #else
                 uint32_t lineBytes = (uint32_t)wquads * 8;
@@ -357,7 +357,7 @@ void UpdateCornerFlagSprite(void)
     d0 = (uint16_t)_cornerFlagPictureIndices[d0] + SPR_CORNER_FLAG_FRAME_0;
     spr->imageIndex = (int16_t)d0;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Widescreen shows the full pitch width, so both side corners on the camera's current
      * row are visible — but the single camera-tracked flag above can only animate one of
      * them. Drive a second flag at the opposite-side corner (same row, same frame) so it

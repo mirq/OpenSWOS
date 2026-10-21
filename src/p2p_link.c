@@ -2089,4 +2089,4 @@ void P2PLink_FailureText(P2PLinkFailure failure, const char **line1, const char 
     }
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

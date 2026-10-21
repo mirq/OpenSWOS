@@ -208,4 +208,4 @@ void CrtEffects_Apply(SDL_Renderer *renderer)
     if (logW || logH) SDL_RenderSetLogicalSize(renderer, logW, logH);
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

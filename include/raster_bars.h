@@ -16,7 +16,7 @@
 #ifndef RASTER_BARS_H
 #define RASTER_BARS_H
 
-#if defined(RASTER_BARS) && !defined(SWOS_SDL_BUILD)
+#if defined(RASTER_BARS) && !defined(SWOS_CHUNKY_BUILD)
 #include "display.h"
 /* Never in the first lines of a frame: the copper is loading the palette there, a bank at
  * a time, and a write between its bank selects lands in THAT bank's colour 0 -- the grass,

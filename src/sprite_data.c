@@ -711,7 +711,7 @@ Sprite _cornerFlagSprite
     = { 3, 0, 0, (AnimTable *)-1, -1, 255, 0, 0, 0, 0, -1, 5, 1, 0, { 0 }, { 0 },
           { 0 }, 0, 0, { 0 }, { 0 }, { 0 }, 0, 0, { 0, 0, 0, 0, 0, 1 }, 1, -1,
           0, 0, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0 };
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Widescreen-only second corner-flag sprite. The full pitch width shows both side corners
  * at once, but cornerFlagSprite can only track one; UpdateCornerFlagSprite drives this one
  * at the opposite corner. Hidden (imageIndex = -1) outside widescreen. */
@@ -786,7 +786,7 @@ Sprite _gridBottomRowRightSprite
     = { 0, 0, 0, (AnimTable *)-1, -1, 255, 0, 0, 0, 0, -1, 5, 1, 0, { 0 }, { 0 },
           { 0 }, 0, 0, { 0 }, { 0 }, { 0 }, 0, 0, { 0, 0, 0, 0, 0, 1 }, 1, 138,
           0, 0, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0 };
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Widescreen: the score panel is a 168-wide dither tile (sprite 138) repeated
  * across the row. Two tiles cover the old 336 box; a 16:9 HUD box is 480 wide,
  * so a THIRD tile per row is needed to reach the right edge (3 x 168 = 504,
@@ -1099,7 +1099,7 @@ Sprite* _teamSpritesTable[] = {
     &_team1ScorerSprite[6], &_team2ScorerSprite[6],
     &_team1ScorerSprite[7], &_team2ScorerSprite[7],
     &_refereeSprite, &_cornerFlagSprite,
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     &_cornerFlagSprite2,
     &_gridUpperRowExtraSprite, &_gridMiddleRowExtraSprite,
     &_gridBottomRowExtraSprite,

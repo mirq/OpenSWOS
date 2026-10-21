@@ -24,8 +24,21 @@
 #define HLOG(...) do { } while (0)
 #else
 
-/* The SDL build is hosted on x86/x64 with little-endian ordering. */
+/* Two macros, two meanings:
+ *
+ *   SWOS_CHUNKY_BUILD  the portable target: the 8bpp chunky renderer, no custom
+ *                      chips (no copper, bitplanes, blitter, Paula, CIA), a
+ *                      hosted libc. Every flavour of the SDL build has it, and so
+ *                      will a target that draws chunky without SDL (an RTG
+ *                      screen under WarpOS). Most gates are this one.
+ *   SWOS_SDL_BUILD     the SDL library is linked: windows, the renderer, SDL
+ *                      timers, threads and controllers. Only code that CALLS SDL
+ *                      gates on it.
+ *
+ * The m68k hardware build defines neither. Until 2026-10-21 there was only
+ * SWOS_SDL_BUILD, meaning both. */
 #define SWOS_SDL_BUILD 1
+#define SWOS_CHUNKY_BUILD 1
 
 /* WebAssembly/Emscripten target (a flavour of the SDL build). WASM-specific
  * bits read `#ifdef SWOS_WASM_BUILD` rather than raw `__EMSCRIPTEN__`:

@@ -1,5 +1,5 @@
 /* contest_log.c -- include/contest_log.h, docs/CONTEST_LOG.md. SDL only. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdint.h>
 #include <stdio.h>
@@ -204,4 +204,4 @@ void ContestLog_Trap(const TeamGeneralInfo *team, const Sprite *player)
             (int)s_before.z, (int)s_before.speed, (int)(dx * dx + dy * dy), who(from), (int)s_view);
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

@@ -6826,7 +6826,7 @@ Menu_ContinueAbort _continueAbortMenu = {
     },
     MENU_MARK_END_MENU
 };
-#ifndef SWOS_SDL_BUILD   /* the Amiga's; shown on AGA only (menus.c) */
+#ifndef SWOS_CHUNKY_BUILD   /* the Amiga's; shown on AGA only (menus.c) */
 /* The Amiga AGA CREDITS screen. The SDL builds run SWOS 2020's credits.mnu from JSON
  * (online_menus.c); the Amiga has no JSON menus, so this is the same screen as a native
  * one. Coordinates are bytes: 140 = -116, 200 = -56. */

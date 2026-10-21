@@ -72,7 +72,7 @@ extern TeamGeneralInfo _bottomTeamData;
 extern Sprite          _ballSprite;
 extern Sprite          _goalie1Sprite;
 extern Sprite          _goalie2Sprite;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern Sprite         *_teamSpritesTable[];
 #else
 /* On Amiga the unified `teamSpritesTable` doesn't exist — the BSS
@@ -313,7 +313,7 @@ static void __attribute__((noinline)) handleBreakCameraMode(TeamGeneralInfo *a6)
                 if (_autoSaveHighlights != 0)
                     _saveHighlightScene = 1;
                 if (_autoReplays != 0
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
                     /* Not in an online match: the replay is a loop of its own outside the
                      * frame step GGPO repeats, so it cannot be rolled back, and the session
                      * would end at the first goal (docs/NETPLAY.md, "Rematch"). */
@@ -377,7 +377,7 @@ static void __attribute__((noinline)) handleBreakCameraMode(TeamGeneralInfo *a6)
         if (_injuriesForever != 0)
             break;
         for (i = 0; i < 22; i++) {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             a1 = _teamSpritesTable[i];
 #else
             a1 = (i < 11) ? _team1SpritesTable[i]

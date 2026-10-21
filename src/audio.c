@@ -11,7 +11,7 @@
 #include "endian_helpers.h"
 #include "display.h"
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include <stdio.h>
 #include <stdlib.h>
 /* RJP1 SDL backend (defined in audio_sdl.c). */
@@ -65,7 +65,7 @@ extern int16_t PlaySong(uint8_t *name, uint8_t *dest);  /* asset_loader.c */
 /* ---- Pointer to each channel by index ---- */
 static AudioChannel *audioChannels[4];
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* include/audio_sfx_filter.h: netplay's gate on the effects a re-simulated frame starts. */
 static AudioSfxFilter   s_sfxFilter;
 static AudioSfxObserver s_sfxObserver;
@@ -156,7 +156,7 @@ void AudioSetChannelVolume(uint16_t channelOrAll, uint16_t volume)
     if (volume != 0x40)
         volume &= 0x3F;
     vol = (uint8_t)volume;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     if (s_sfxObserver)
         s_sfxObserver(AUDIO_SFX_VOLUME, (channelOrAll & 0x80) ? 0xFF : (uint8_t)(channelOrAll & 3), vol);
     /* The PC chants follow the Amiga's chant channel (dos_sound.c). */
@@ -172,7 +172,7 @@ void AudioSetChannelVolume(uint16_t channelOrAll, uint16_t volume)
         _audioState.channelVolume[1] = vol;
         _audioState.channelVolume[2] = vol;
         _audioState.channelVolume[3] = vol;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         AudioSDL_SetMasterVolume(vol);
         /* Also push the per-channel attenuation to the RJP1 player so a
          * previous single-channel fade-out (e.g. the crowd-chant code
@@ -197,7 +197,7 @@ void AudioSetChannelVolume(uint16_t channelOrAll, uint16_t volume)
     else
     {
         _audioState.channelVolume[channelOrAll & 3] = vol;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         /* Without this the per-channel volume only updated the
          * Amiga-side state byte and never reached the SDL audio
          * engine — so e.g. the chant fade-out path (which sets
@@ -269,7 +269,7 @@ void ClearAudioChannelStruct(AudioChannel *chan)
 __attribute__((used, externally_visible))
 void InitAudioState(uint8_t *bankBase, uint8_t *songPtr)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* The real init parses the bank header byte-for-byte, but the whole
      * bank layout is 68k big-endian. Until we add proper byte-swap
      * support across audio.c / audio_irq.c, just zero the state and
@@ -411,7 +411,7 @@ void InitAudioState(uint8_t *bankBase, uint8_t *songPtr)
     _audioChannel3.hwRegBase = AUD3LC_ADDR;
     _audioChannel3.pvDmaBit = 8;
     _audioChannel3.svDmaBit = 8;
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 }
 
 /* ================================================================
@@ -499,7 +499,7 @@ void AudioChannelNoteOnOff(uint16_t channel, uint16_t noteId)
 __attribute__((used, externally_visible))
 void AudioApplyPresetToChannels(uint16_t presetId)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Walk the preset table just like the Amiga byte-poking engine:
      * one 4-byte preset record = one noteId per channel; each non-zero
      * noteId fires a sample on its channel after a song_data[3]+[5]
@@ -543,7 +543,7 @@ void AudioApplyPresetToChannels(uint16_t presetId)
     noteId = preset[3];
     if (noteId != 0)
         AudioChannelNoteOnOff(3, noteId);
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 }
 
 /* ================================================================
@@ -557,7 +557,7 @@ void AudioApplyPresetToChannels(uint16_t presetId)
 __attribute__((used, externally_visible))
 void AudioChannelQueueNextWaveIfEnabled(uint16_t channel, uint16_t waveId)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Mirror Amiga: bankSectionPtrs[4]+[6] indirection on waveId.
      * Without this, kicks come out as whistles and vice-versa.
      * AudioSDL_TriggerSfxByWaveId does the lookup + trigger. */
@@ -633,7 +633,7 @@ void AudioChannelQueueNextWaveIfEnabled(uint16_t channel, uint16_t waveId)
     chan->svStepPeriod = 6;
     chan->svScriptTimer = 1;
     chan->svPeriodCounter = 1;
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 }
 
 /* ================================================================
@@ -669,7 +669,7 @@ void AudioBeepAllShort(void)
 __attribute__((used, externally_visible))
 void InitMenuMusic(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* No Amiga music installed (main.c): the PC game's plays instead. */
     { extern int _gNoAmigaSound;
       if (_gNoAmigaSound) { _audioBankLoaded = 0; _audioActive = 0; return; } }
@@ -702,11 +702,11 @@ void TryPlayMusic(void)
 
     if (_audioActive != 0)
         return;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     DosSound_Stop();        /* back in the menus: no match's crowd under their music */
 #endif
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* On SDL the RJP1 player produces samples directly into the SDL
      * audio callback. Load (once) and start subsong 1, then fade in via
      * the master-volume ramp. */
@@ -785,7 +785,7 @@ void StopAudioAndClearFlags(void)
 __attribute__((used, externally_visible))
 void LoadSfxResources(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* No Amiga effects installed (main.c): the PC game's are used instead. */
     { extern int _gNoAmigaSound;
       if (_gNoAmigaSound) { StopAllAudioChannels(); _audioBankLoaded = 0; return; } }
@@ -795,7 +795,7 @@ retry:
     _audioBankLoaded = 0;
     if (PlaySong(_aSoundSfxSng, _sfxSongData) != 0)
         goto retry;
-#ifndef SWOS_SDL_BUILD
+#ifndef SWOS_CHUNKY_BUILD
     /* Amiga path: SFX.IN1 / SFX.IN2 are loaded into poolplyrDatBuffer
      * and sfxInsBank2 (which are BSS-adjacent on Amiga, forming the
      * single contiguous instrument blob RJP1 expects). On SDL we
@@ -812,7 +812,7 @@ retry:
         goto retry;
 #endif
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* The original Amiga relies on `poolplyrDatBuffer` (= SFX.IN1) and
      * `sfxInsBank2` (= SFX.IN2) being adjacent in BSS — RJP1
      * instrument records carry 32-bit byte offsets that index into
@@ -875,7 +875,7 @@ void StopMusic(void)
     if (_audioActive == 0)
         return;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     for (vol = 0x40; vol >= 0; vol--)   /* SDL plays music at full; fade from there */
 #else
     for (vol = 0x23; vol >= 0; vol--)
@@ -892,7 +892,7 @@ void StopMusic(void)
 
     AudioSetChannelVolume(0xFFFF, 0);
     _audioActive = 0;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     AudioSDL_StopSong();
     _audioBankLoaded = 0;   /* next TryPlayMusic will re-load the song */
 #endif

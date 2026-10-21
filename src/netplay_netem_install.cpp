@@ -7,7 +7,7 @@
  * keeps a generic hook rather than a SWOS-shaped one (see
  * third_party/ggpo-x/OPENSWOS.md).
  */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #ifdef SWOS_NETPLAY
 
 #include "udp.h"

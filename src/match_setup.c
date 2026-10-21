@@ -900,7 +900,7 @@ void InitGameRestoreTeams(void)
     /* Apply tactics for both teams */
     ApplyTeamTactics((uint8_t *)&_topTeamInGame);
     ApplyTeamTactics((uint8_t *)&_bottomTeamInGame);
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     {
         extern void MatchSim_LogSkillRoll(void);
         MatchSim_LogSkillRoll();        /* each side's form for this match, in SWOS.log */

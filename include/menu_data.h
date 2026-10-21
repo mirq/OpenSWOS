@@ -3482,7 +3482,7 @@ extern Menu_ChooseTeams _chooseTeamsMenu;
 extern Menu_SelectFiles _selectFilesMenu;
 extern Menu_Continue _continueMenu;
 extern Menu_ContinueAbort _continueAbortMenu;
-#ifndef SWOS_SDL_BUILD   /* the Amiga's; shown on AGA only (menus.c) */
+#ifndef SWOS_CHUNKY_BUILD   /* the Amiga's; shown on AGA only (menus.c) */
 extern Menu_CreditsAga _creditsAgaMenu;
 #endif
 extern Menu_SWOSMainMenu _swosMainMenu;

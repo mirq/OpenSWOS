@@ -40,7 +40,7 @@
 #ifndef NETPLAY_MATCH_H
 #define NETPLAY_MATCH_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "swos_types.h"
 
@@ -160,5 +160,5 @@ int32_t     NetplayMatch_LiveOutcome(const char **why);
  * the outcome above. */
 int32_t     NetplayMatch_Finish(void);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* NETPLAY_MATCH_H */

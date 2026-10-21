@@ -8,7 +8,7 @@
 #include "game_types.h"
 #include "display.h"
 #include "deterministic.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "swos_types.h"
 #endif
 
@@ -111,7 +111,7 @@ void CopySprite(uint16_t srcSprite, uint16_t dstSprite,
     /* Load source sprite header */
     SpriteGraphics *srcHdr = sprGfxTable[srcSprite];
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Chunky 8bpp byte copy. The Amiga blitter path below programs
      * `custom->blt*` registers which on SDL go to a stub buffer
      * doing nothing observable, so without this path sprite[dstSprite]
@@ -312,7 +312,7 @@ void ConvertSpriteColors(uint16_t spriteIndex, uint16_t *colorTable)
     SpriteGraphics **sprGfxTable = (SpriteGraphics **)_spriteGraphicsPtr;
     SpriteGraphics *spr = sprGfxTable[spriteIndex];
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Sprites are 8bpp chunky after ProcessImageCommandStream decodes
      * them at load. Color conversion is just a 1-byte LUT walk over
      * `wquads * 16 * nlines` bytes. `colorTable[0] == 0` means "keep
@@ -499,7 +499,7 @@ void InitDisplaySprites(void)
 __attribute__((used, externally_visible))
 void QueueMaskedSpriteBlitClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* SDL: Amiga's queued/masked player-sprite blit uses a blitter
      * queue with linked-plane cookie-cut masking. On our 8bpp chunky
      * pipeline transparency is palette index 0, so there's no separate
@@ -532,7 +532,7 @@ void QueueMaskedSpriteBlitClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
     d1 += (int16_t)_cameraXMod320;
     d2 += (int16_t)_cameraYMod320;
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     /* AGA no-wrap: the two display frontbuffers are 2x tall — rows
      * [SCREEN_HEIGHT,2*SCREEN_HEIGHT) MIRROR [0,SCREEN_HEIGHT) and the copper
      * shows a window sliding by cameraYMod320. Draw the bob ONCE at its true
@@ -571,7 +571,7 @@ void QueueMaskedSpriteBlitClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         uint8_t *a1 = (uint8_t *)_frontbufferBasePtr + _menu_draw_x_offset;
 
         int16_t xWordOff = (d1 >> TILE_SHIFT_X) << 1; /* asr.w + asl.w (signed) */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         if (_playGame) xWordOff += SCROLL_LEFT_MARGIN_BYTES;   /* §desync: pitch verge margin, in-match only */
 #endif
         int32_t xWordOffL = (int32_t)xWordOff; /* sign-extend */
@@ -621,7 +621,7 @@ void QueueMaskedSpriteBlitClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         BLT_W(_custom->bltsize, entryBltsize);
 
         /* ---- Queue the undraw (bg-restore) entry/entries ---- */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         if (d2 + SPRITE_HEIGHT_LINES <= SCREEN_HEIGHT) {
             /* Entirely in the first half. */
             *(uint32_t *)((uint8_t *)a3 + 0)  = undrawTwin(destAddr);
@@ -677,13 +677,13 @@ void QueueMaskedSpriteBlitClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 
 fallback:
     DrawSpriteClipped(a0, d1, d2);
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 }
 #else
 __attribute__((used, externally_visible))
 void QueueMaskedSpriteBlitClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* SDL: Amiga's queued/masked player-sprite blit uses a blitter
      * queue with linked-plane cookie-cut masking. On our 8bpp chunky
      * pipeline transparency is palette index 0, so there's no separate
@@ -727,7 +727,7 @@ void QueueMaskedSpriteBlitClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
     d1 += (int16_t)_cameraXMod320;
     d2 += (int16_t)_cameraYMod320;
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     /* AGA no-wrap: the two display frontbuffers are 2x tall — rows
      * [SCREEN_HEIGHT,2*SCREEN_HEIGHT) MIRROR [0,SCREEN_HEIGHT) and the copper
      * shows a window sliding by cameraYMod320. Draw the bob ONCE at its true
@@ -766,7 +766,7 @@ void QueueMaskedSpriteBlitClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         uint8_t *a1 = (uint8_t *)_frontbufferBasePtr + _menu_draw_x_offset;
 
         int16_t xWordOff = (d1 >> TILE_SHIFT_X) << 1; /* asr.w + asl.w (signed) */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         if (_playGame) xWordOff += SCROLL_LEFT_MARGIN_BYTES;   /* §desync: pitch verge margin, in-match only */
 #endif
         int32_t xWordOffL = (int32_t)xWordOff; /* sign-extend */
@@ -816,7 +816,7 @@ void QueueMaskedSpriteBlitClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         BLT_W(_custom->bltsize, entryBltsize);
 
         /* ---- Queue the undraw (bg-restore) entry/entries ---- */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         if (d2 + SPRITE_HEIGHT_LINES <= SCREEN_HEIGHT) {
             /* Entirely in the first half. */
             *(uint32_t *)((uint8_t *)a3 + 0)  = undrawTwin(destAddr);
@@ -872,7 +872,7 @@ void QueueMaskedSpriteBlitClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 
 fallback:
     DrawSpriteClipped(a0, d1, d2);
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 }
 #endif
 
@@ -881,7 +881,7 @@ static uint16_t queuedLineCount;
 static uint32_t savedSrcPlaneA;
 static uint32_t savedSrcPlaneB;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Chunky 8bpp sprite blit. Source format (built by `blitDispatch`):
  *   - 1 byte per pixel = palette index (0..15 for OCS, up to 255 AGA)
  *   - row stride = wquads * 16 bytes
@@ -954,7 +954,7 @@ static void blitChunkySprite(SpriteGraphics *a0, int16_t dstX, int16_t dstY)
 __attribute__((used, externally_visible))
 void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     blitChunkySprite(a0, d1, d2);
     return;
 #else
@@ -983,7 +983,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         /* Apply camera offsets. */
         d1 += _cameraXMod320;
         d2 += _cameraYMod320;
-#if !(defined(AGA) && !defined(SWOS_SDL_BUILD))
+#if !(defined(AGA) && !defined(SWOS_CHUNKY_BUILD))
         /* OCS 1x buffer wraps Y; AGA draws no-wrap into the 2x-tall buffer (the
          * seam split below routes any overshoot into the mirror half, and a bob
          * wholly in the mirror half folds its bg-save offset back). */
@@ -1025,7 +1025,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         uint16_t d4 = 0;
         {
             int16_t overshoot = d2 + d3 - SCREEN_HEIGHT;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             /* No-wrap: only a bob straddling the seam (d2 < SCREEN_HEIGHT) splits
              * its tail into the mirror top. A bob wholly in the mirror half
              * (d2 >= SCREEN_HEIGHT) is one contiguous blit; its bg-save offset is
@@ -1044,7 +1044,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 
         /* Compute destination pointer */
         int16_t xWordOff = (d1 >> TILE_SHIFT_X) << 1; /* asr.w + asl.w (signed) */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         if (_playGame) xWordOff += SCROLL_LEFT_MARGIN_BYTES;   /* §desync: pitch verge margin, in-match only */
 #endif
         int32_t xWordOffL = (int32_t)xWordOff;  /* sign-extended */
@@ -1056,7 +1056,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         BLT_L(_custom->bltdpt, destAddr);
         /* Queue entry: mask+fb addresses */
         *(uint32_t *)((uint8_t *)a3 + 4) = destAddr;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         /* Fold a mirror-half dest back to its first-half bg-save row (1x mask). */
         uint32_t maskFirstHalfOff = destAddr - (uint32_t)a1;
         if (d2 >= SCREEN_HEIGHT)
@@ -1098,7 +1098,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 
         /* Handle Y-wrap tail portion */
         if (d4 != 0) {
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             /* AGA 2x-tall buffer: the tail is the CONTIGUOUS continuation past
              * SCREEN_HEIGHT, so it belongs at the top of the MIRROR half
              * (+FB_MIRROR_OFFSET), NOT wrapped back to buffer row 0. Wrapping to
@@ -1120,7 +1120,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
             BLT_L(_custom->bltcpt, destAddr2);
             BLT_L(_custom->bltdpt, destAddr2);
             BLT_W(_custom->bltsize, tailBltsize);
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             /* The mirror half's clean pitch == the first half's, and the bg-save
              * mask buffer is only 1x tall — so restore the tail from the FIRST-half
              * mask position (destAddr2 minus the mirror offset), not destAddr2's own
@@ -1167,7 +1167,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         /* Apply camera offsets. */
         d1 += _cameraXMod320;
         d2 += _cameraYMod320;
-#if !(defined(AGA) && !defined(SWOS_SDL_BUILD))
+#if !(defined(AGA) && !defined(SWOS_CHUNKY_BUILD))
         /* OCS 1x buffer wraps Y; AGA draws no-wrap into the 2x-tall buffer. */
         if (d2 >= SCREEN_HEIGHT)
             d2 -= SCREEN_HEIGHT;
@@ -1207,7 +1207,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         uint16_t d4 = 0;
         {
             int16_t overshoot = d2 + d3 - SCREEN_HEIGHT;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             /* No-wrap: split only a bob straddling the seam (d2 < SCREEN_HEIGHT).
              * A bob wholly in the mirror half is one contiguous blit (bg-save
              * offset folded back at the entry below). */
@@ -1228,7 +1228,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 
         /* Compute destination pointer */
         int16_t xByteOff = (d1 >> TILE_SHIFT_X) << 1; /* asr.w + asl.w (signed) */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         if (_playGame) xByteOff += SCROLL_LEFT_MARGIN_BYTES;   /* §desync: pitch verge margin, in-match only */
 #endif
         int32_t xByteOffL = (int32_t)xByteOff;
@@ -1242,7 +1242,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 
         /* Queue entry */
         *(uint32_t *)((uint8_t *)a3 + 4) = destAddr;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         /* Fold a mirror-half dest back to its first-half bg-save row (1x mask). */
         uint32_t maskFirstHalfOff = destAddr - (uint32_t)a1;
         if (d2 >= SCREEN_HEIGHT)
@@ -1331,7 +1331,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 
             waitBlit();
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             /* Contiguous continuation past SCREEN_HEIGHT → mirror top (row 0 of
              * the mirror half), NOT buffer row 0; bg-save reads the first-half
              * row (destAddr2 minus the mirror offset). Only reached when the bob
@@ -1347,7 +1347,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
             BLT_L(_custom->bltbpt, tailSrcA);
             /* Queue entry for tail */
             *(uint32_t *)((uint8_t *)a3 + 4) = tailDest;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             uint32_t tailMask = undrawTwin(tailDest);
 #else
             uint32_t tailMask = tailDest - (uint32_t)a1 + (uint32_t)_frontbufferMaskBuffer;
@@ -1389,13 +1389,13 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         *(uint32_t *)a3 = BLT_BLITQ_END;
         _spriteBlitQueue = (uintptr_t)a3;
     }
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 }
 #else
 __attribute__((used, externally_visible))
 void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     blitChunkySprite(a0, d1, d2);
     return;
 #else
@@ -1424,7 +1424,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         /* Apply camera offsets. */
         d1 += _cameraXMod320;
         d2 += _cameraYMod320;
-#if !(defined(AGA) && !defined(SWOS_SDL_BUILD))
+#if !(defined(AGA) && !defined(SWOS_CHUNKY_BUILD))
         /* OCS 1x buffer wraps Y; AGA draws no-wrap into the 2x-tall buffer (the
          * seam split below routes any overshoot into the mirror half, and a bob
          * wholly in the mirror half folds its bg-save offset back). */
@@ -1466,7 +1466,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         uint16_t d4 = 0;
         {
             int16_t overshoot = d2 + d3 - SCREEN_HEIGHT;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             /* No-wrap: only a bob straddling the seam (d2 < SCREEN_HEIGHT) splits
              * its tail into the mirror top. A bob wholly in the mirror half
              * (d2 >= SCREEN_HEIGHT) is one contiguous blit; its bg-save offset is
@@ -1485,7 +1485,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 
         /* Compute destination pointer */
         int16_t xWordOff = (d1 >> TILE_SHIFT_X) << 1; /* asr.w + asl.w (signed) */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         if (_playGame) xWordOff += SCROLL_LEFT_MARGIN_BYTES;   /* §desync: pitch verge margin, in-match only */
 #endif
         int32_t xWordOffL = (int32_t)xWordOff;  /* sign-extended */
@@ -1497,7 +1497,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         BLT_L(_custom->bltdpt, destAddr);
         /* Queue entry: mask+fb addresses */
         *(uint32_t *)((uint8_t *)a3 + 4) = destAddr;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         /* Fold a mirror-half dest back to its first-half bg-save row (1x mask). */
         uint32_t maskFirstHalfOff = destAddr - (uint32_t)a1;
         if (d2 >= SCREEN_HEIGHT)
@@ -1588,7 +1588,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 
         /* Handle Y-wrap tail portion (the d4 rows that wrap past the seam). */
         if (d4 != 0) {
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             /* AGA 2x-tall buffer: the tail is the CONTIGUOUS continuation past
              * SCREEN_HEIGHT, so it belongs at the top of the MIRROR half
              * (+FB_MIRROR_OFFSET), NOT wrapped back to buffer row 0. */
@@ -1599,7 +1599,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
             uint16_t tailBltsize = ((uint16_t)d4 << NUM_PLANES_SHIFT << 6) | d7;  /* queue: 8-plane */
 
             *(uint32_t *)((uint8_t *)a3 + 4) = destAddr2;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             uint32_t tailMask = undrawTwin(destAddr2);
 #else
             uint32_t tailMask = destAddr2 - (uint32_t)a1 + (uint32_t)_frontbufferMaskBuffer;
@@ -1684,7 +1684,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         /* Apply camera offsets. */
         d1 += _cameraXMod320;
         d2 += _cameraYMod320;
-#if !(defined(AGA) && !defined(SWOS_SDL_BUILD))
+#if !(defined(AGA) && !defined(SWOS_CHUNKY_BUILD))
         /* OCS 1x buffer wraps Y; AGA draws no-wrap into the 2x-tall buffer. */
         if (d2 >= SCREEN_HEIGHT)
             d2 -= SCREEN_HEIGHT;
@@ -1724,7 +1724,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         uint16_t d4 = 0;
         {
             int16_t overshoot = d2 + d3 - SCREEN_HEIGHT;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             /* No-wrap: split only a bob straddling the seam (d2 < SCREEN_HEIGHT).
              * A bob wholly in the mirror half is one contiguous blit (bg-save
              * offset folded back at the entry below). */
@@ -1745,7 +1745,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 
         /* Compute destination pointer */
         int16_t xByteOff = (d1 >> TILE_SHIFT_X) << 1; /* asr.w + asl.w (signed) */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         if (_playGame) xByteOff += SCROLL_LEFT_MARGIN_BYTES;   /* §desync: pitch verge margin, in-match only */
 #endif
         int32_t xByteOffL = (int32_t)xByteOff;
@@ -1759,7 +1759,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
 
         /* Queue entry */
         *(uint32_t *)((uint8_t *)a3 + 4) = destAddr;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         /* Fold a mirror-half dest back to its first-half bg-save row (1x mask). */
         uint32_t maskFirstHalfOff = destAddr - (uint32_t)a1;
         if (d2 >= SCREEN_HEIGHT)
@@ -1873,7 +1873,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
             /* The main-draw clear pass may have left bltcon0 = CLEAR_MASK; restore linked. */
             BLT_W(_custom->bltcon0, bltcon0);
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             /* Contiguous continuation past SCREEN_HEIGHT → mirror top. */
             uint32_t tailDest = (uint32_t)a1 + (uint32_t)FB_MIRROR_OFFSET_BYTES + d6save;
 #else
@@ -1884,7 +1884,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
             BLT_L(_custom->bltapt, tailSrcB);
             BLT_L(_custom->bltbpt, tailSrcA);
             *(uint32_t *)((uint8_t *)a3 + 4) = tailDest;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
             uint32_t tailMask = undrawTwin(tailDest);
 #else
             uint32_t tailMask = tailDest - (uint32_t)a1 + (uint32_t)_frontbufferMaskBuffer;
@@ -1933,7 +1933,7 @@ void DrawSpriteClipped(SpriteGraphics *a0, int16_t d1, int16_t d2)
         *(uint32_t *)a3 = BLT_BLITQ_END;
         _spriteBlitQueue = (uintptr_t)a3;
     }
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 }
 #endif
 
@@ -2113,7 +2113,7 @@ void DrawQueuedSprites(void)
             SaveCoordinatesForHighlights(d0, (uint16_t)d1, (uint16_t)d2);
         }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         /* SWOS_REPLAY_TRACE (src/replay_v2.c): what the live match drew, to compare a
          * recording's playback against. */
         if (a4->z.s.i < HUD_LAYER_Z_MIN) {
@@ -2143,7 +2143,7 @@ void DrawQueuedSprites(void)
          * blitChunkySprite takes its destination from _frontbufferBasePtr, so
          * pointing that at the layer needs no new blit path and cannot affect
          * the world sprites at all. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         uint8_t  *hudLayer = NULL;
         /* uintptr_t, NOT uint32_t: _frontbufferBasePtr is a volatile uintptr_t
          * and s_hud_layer is a 64-bit heap pointer — narrowing it here would
@@ -2167,7 +2167,7 @@ void DrawQueuedSprites(void)
         } else {
             DrawSpriteClipped(a0, d1, d2);
         }
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         if (hudLayer)
             _frontbufferBasePtr = savedFbBase;
 #endif
@@ -2185,7 +2185,7 @@ void DrawQueuedSprites(void)
  *     a4/a5 = copper list plane pair pointers (advanced on exit)
  *     a6 = CUSTOM base
  * ================================================================ */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* HW-sprite X re-centre (AGA only): the FMODE=1 display shows the bitplanes (pitch, bobs,
  * menus) re-centred +16px vs OCS; hardware sprites use raw screen coords via the fixed 0x70
  * reference and never got that +16px, so they landed a tile left of the bobs (the on-pitch
@@ -2202,7 +2202,7 @@ static void renderSpriteBandPlanePair(SpriteGraphics *sprGfx, int16_t x, int16_t
 
     int16_t d3 = y + sprGfx->nlines;
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     x += AGA_HwSpriteXShift();   /* re-centre HW sprites onto the +16px-shifted bobs/pitch */
 #endif
     /* Add display offsets */
@@ -2264,7 +2264,7 @@ static void renderSpriteBandPlanePair(SpriteGraphics *sprGfx, int16_t x, int16_t
 __attribute__((used, externally_visible))
 void RenderSpriteBandsToCopperLists(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* SDL has no Amiga copper-list / bitplane infrastructure — every
      * write below targets bitPlane{0..3}BasePtr (Amiga chip memory)
      * via Amiga blitter regs that don't exist here. On 64-bit the
@@ -2341,7 +2341,7 @@ void RenderSpriteBandsToCopperLists(void)
     /* Terminate plane 2/3 copper lists */
     *(uint32_t *)a4 = _copperZeroLong;
     *(uint32_t *)a5 = _copperZeroLong;
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 }
 
 /* ================================================================
@@ -2375,7 +2375,7 @@ static int16_t plane23BandTopY_local;
    screenshot while leaving the live display correct. Size the active region for the
    max render width plus a wide-sprite margin (and clamp the span below as a
    belt-and-braces guard). Amiga keeps the exact 26-word asm layout. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #define OCCL_ACTIVE_BUCKETS 48   /* >= ceil(PITCH_VIEW_MAX_WIDTH/16)=42 cols + edge margin */
 #else
 #define OCCL_ACTIVE_BUCKETS 26   /* original asm layout (336 px screen) */
@@ -2485,7 +2485,7 @@ void BuildSpriteBandAndGeneralRenderStacks(void)
         int16_t d2sim = a1->y.s.i - a0->centerY - _cameraY.s.i - a1->z.s.i;
         int16_t d2 = a1->y.s.i - a0->centerY - Render_CameraY();
         d2 -= a1->z.s.i;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         /* the FMODE=3 window's HUD layout (display.h): drawing only, after the cull */
         if (a1->z.s.i >= HUD_LAYER_Z_MIN && AGA_FM3())
             d1 = (int16_t)(d1 + AGA_FM3_HUD_SHIFT_PX);
@@ -2575,7 +2575,7 @@ void BuildSpriteBandAndGeneralRenderStacks(void)
          * bodies and the ball render nothing. Force every sprite onto
          * the general render stack so DrawQueuedSprites handles them
          * via blitChunkySprite. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         if (1) {
 #else
         /* FMODE=3 (display.h AGA_FMODE): the fetch starts at DDFSTRT $18, before the DMA
@@ -2586,7 +2586,7 @@ void BuildSpriteBandAndGeneralRenderStacks(void)
             /* `>> 4` then `<< 1` on a negative x: the shift left is UB (include/math68k.h). */
             int16_t leftBucket = M68kShiftLeft16((int16_t)(d1 >> 4), 1);
             int16_t rightBucket = M68kShiftLeft16((int16_t)((d1 + a0->pixWidth - 1) >> 4), 1);
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             /* Clamp the column span to the occlusion array. a3 = occlBuckets_combined+5,
              * so the valid a3 index is [-5, OCCL_ACTIVE_BUCKETS-1]; a sprite spanning past
              * the (widescreen) right edge or far off the left edge must not write past it. */
@@ -2703,7 +2703,7 @@ post_enqueue:
 __attribute__((used, externally_visible))
 void DrawSprites(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     { extern void Platform_HudLayerReset(void); Platform_HudLayerReset(); }
 #endif
     SortSprites();

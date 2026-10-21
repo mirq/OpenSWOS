@@ -4,7 +4,7 @@
 
 #ifdef SWOS_TEST_RULES
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern int ReplayTest_Armed(void);      /* replay_test.c: the replay corpus */
 extern int ReplayTest_Running(void);
 extern int Rollback_Enabled(void);      /* rollback_rig.c */
@@ -35,7 +35,7 @@ int32_t TestRules_NoInjuriesCards(void)
     if (NetplayMatch_Enabled() || NetplayLobby_IsOpen())
         return 0;
 #endif
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     if (ReplayTest_Armed() || ReplayTest_Running() || Rollback_Enabled())
         return 0;
 #endif

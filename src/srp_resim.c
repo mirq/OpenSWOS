@@ -22,7 +22,7 @@
  */
 #include "srp_resim.h"
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -213,4 +213,4 @@ int32_t SrpResim_Rules(int *dosGameplay, int *fireHoldLockout, int *dosView)
 void    SrpResim_Run(void) {}
 
 #endif /* SWOS_NETPLAY */
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

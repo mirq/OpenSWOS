@@ -12,7 +12,7 @@
 #include "audio.h"
 #include <string.h>            /* memcpy/memset — both builds (Amiga loader re-stride) */
 extern uint8_t _rawAssetLoadBuffer[];   /* overlay/frame staging — both builds */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern int  AudioSDL_StartSong(const uint8_t *song_data, int song_size,
                                const uint8_t *ins_data,  int ins_size,
                                int subsong);
@@ -78,7 +78,7 @@ extern int16_t LoadRNCToBufferNoBlit(uint8_t *name, uint8_t *dest);     /* asset
  * ================================================================ */
 static void loaderIntroEnsureMenuMusicPlaying(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* SDL build: route through the RJP1 player + SDL audio callback
      * (same mechanism TryPlayMusic uses for the menu song). The Amiga
      * `InitAudioState` is stubbed on SDL because it parses a 68k-BE
@@ -145,7 +145,7 @@ static void loaderIntroEnsureMenuMusicPlaying(void)
  * ================================================================ */
 static void loaderIntroStopMusicAndResetAudio(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     for (int16_t vol = 0x40; vol >= 0; vol--) {   /* fade from full (SDL playback level) */
         AudioSetChannelVolume(0xFFFF, (uint16_t)vol);
         WaitForVSync();
@@ -169,7 +169,7 @@ static void loaderIntroStopMusicAndResetAudio(void)
  * ================================================================ */
 static void loaderIntroLoadHeroAudioBank(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* No Amiga music installed (main.c): nothing to stage. */
     { extern int _gNoAmigaSound; if (_gNoAmigaSound) { _audioBankLoaded = 0; return; } }
 #endif
@@ -181,7 +181,7 @@ retry:
         goto retry;
 }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Arcade mode skips the loader intro, so the HERO title song is never staged.
  * Load hero.sng / hero.ins and start playback (subsong 0, faded in) on demand —
  * used by the arcade attract loop. Reuses the two intro helpers so the staging
@@ -212,7 +212,7 @@ void Arcade_PlayHeroMusic(void)
  * ================================================================ */
 static void loaderIntroLoadFrameToFrontbufferAlt(const uint8_t *filename)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     uint32_t frameSize = 0;
     LoadFileEx((uint8_t *)filename, _rawAssetLoadBuffer, &frameSize);
 

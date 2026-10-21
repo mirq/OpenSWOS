@@ -18,7 +18,7 @@
 #include "test_rules.h"
 #include "p2p_menu.h"
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "p2p_link.h"
 #include "online_menus.h"     /* OnlineMenus_EnterLobby: where a connected pair sets the match up */
@@ -352,4 +352,4 @@ void P2PMenu_Show(void)
     ShowMenu(menu);
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

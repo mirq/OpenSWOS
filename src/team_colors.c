@@ -690,7 +690,7 @@ SetInGameTeamsPrimaryColors(TeamFile *team1File, TeamFile *team2File)
 }
 
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* ============================================================
  * SetInGameTeamsFirstKits
  * ============================================================

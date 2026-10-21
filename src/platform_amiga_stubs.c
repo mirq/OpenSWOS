@@ -14,7 +14,7 @@
 #include "swos_platform.h"
 #include "swos_types.h"
 #include "swos_sections.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "swos_asm.h"
 #include "platform_sdl.h"
 #include "display.h"
@@ -30,7 +30,7 @@ volatile uint16_t _panicReasonCode = 0;
  * main.c on the Amiga port. SDL has its own main.c which doesn't, so
  * we keep a definition here for SDL — gated to prevent a multi-def
  * link error on Amiga where main.c is authoritative. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 volatile uint16_t *_pPanicReasonCode = &_panicReasonCode;
 #endif
 
@@ -45,7 +45,7 @@ volatile uint16_t *_pPanicReasonCode = &_panicReasonCode;
  *
  * Actually -- the simplest thing is to overwrite the pointer in
  * Platform_Init via a getter. We expose the storage here. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 static struct Custom s_custom_storage;
 struct Custom *Platform_GetCustomStorage(void) { return &s_custom_storage; }
 
@@ -58,7 +58,7 @@ void Platform_RewireCustom(void)
 }
 #endif
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* The Amiga ISR (`_Int3TimerHandler`) calls into `FadeOutTick` /
  * `FadeInTick` which use the sentinel value FADE_SENTINEL (0x3E7) to
  * mean "no fade in progress". On Amiga the data section initialised
@@ -107,7 +107,7 @@ void Platform_PreArmIsrGlobals(void)
     _paletteTable[5] = _titleTextPalette;
     _paletteTable[6] = _titleLogoPalette;
 }
-#endif  /* SWOS_SDL_BUILD */
+#endif  /* SWOS_CHUNKY_BUILD */
 
 /* ---- Forward declarations from the ported Amiga C ------------------- */
 /* SWOS.c defines `_start` (the original m68k entry). The hosted libc
@@ -121,7 +121,7 @@ extern void mainC(void);
 /* ---- Quit flag ------------------------------------------------------ */
 /* SDL: defined here (was in SWOS2.s; SDL doesn't link SWOS2.s).
  * Amiga: defined by Resload.s, included via resload_unit.s. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 uint16_t _quitToDos = 0;
 #else
 extern uint16_t _quitToDos;
@@ -129,7 +129,7 @@ extern uint16_t _quitToDos;
 
 void Platform_RequestQuit(void)
 {
-#if defined(SWOS_DEBUG_AUTOSKIP) && defined(SWOS_SDL_BUILD)
+#if defined(SWOS_DEBUG_AUTOSKIP) && defined(SWOS_CHUNKY_BUILD)
     if (!_quitToDos)
         fprintf(stderr, "[autoskip] Platform_RequestQuit: _quitToDos was 0, now setting 1\n");
 #endif
@@ -157,7 +157,7 @@ extern uint16_t _chooseTeamsResult;
 void Platform_CheckQuitRequest(void)
 {
     if (!_quitToDos) return;
-#if defined(SWOS_DEBUG_AUTOSKIP) && defined(SWOS_SDL_BUILD)
+#if defined(SWOS_DEBUG_AUTOSKIP) && defined(SWOS_CHUNKY_BUILD)
     static int once;
     if (!once) {
         once = 1;
@@ -175,7 +175,7 @@ void Platform_CheckQuitRequest(void)
  * The full Amiga sequence is swos_c_start() -> mainC(); SDL skips
  * swos_c_start() because it pokes raw chip-register addresses that
  * segfault on a hosted target. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 void startShim(void)
 {
     /* Re-point `custom` (defined in display.c with a 0xDFF000 initializer)
@@ -242,7 +242,7 @@ void startShim(void)
 /* ---- VBR (vector base register) shadow ------------------------------
  * On Amiga _S_VBR is defined by Resload.s (included via resload_unit.s),
  * so the SDL-side stub must NOT collide with it. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 uint32_t _S_VBR = 0;
 #endif
 

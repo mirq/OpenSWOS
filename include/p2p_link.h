@@ -20,7 +20,7 @@
 #ifndef P2P_LINK_H
 #define P2P_LINK_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "swos_types.h"
 
@@ -198,5 +198,5 @@ int32_t        P2PLink_IsAddress(const char *text);
  * Prints a report; 0 on success. Part of `--netplay-selftest`. */
 int32_t        P2PLink_SelfTest(void);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* P2P_LINK_H */

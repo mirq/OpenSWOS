@@ -2,7 +2,7 @@
  * match_step.c -- a match played a frame at a time from outside the game loop.
  * See include/match_step.h.
  */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdio.h>
 #include <string.h>
@@ -238,4 +238,4 @@ void MatchStep_AdvanceClock(void)
         _currentGameTick++;
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

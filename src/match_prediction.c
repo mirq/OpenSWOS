@@ -8,7 +8,7 @@
  */
 #include "match_prediction.h"
 
-#if defined(SWOS_SDL_BUILD) && defined(SWOS_NETPLAY)
+#if defined(SWOS_CHUNKY_BUILD) && defined(SWOS_NETPLAY)
 
 #include <stdio.h>
 #include <stdlib.h>

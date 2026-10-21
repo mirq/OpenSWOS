@@ -20,7 +20,7 @@
  */
 #include "mm_client.h"
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdio.h>
 #include <string.h>
@@ -1234,4 +1234,4 @@ int32_t MmClient_PairTest(const char *role, const char *host, uint16_t port)
 
 #endif /* SWOS_NETPLAY */
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

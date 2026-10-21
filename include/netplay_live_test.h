@@ -5,7 +5,7 @@
 #ifndef NETPLAY_LIVE_TEST_H
 #define NETPLAY_LIVE_TEST_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "swos_types.h"
 
@@ -27,5 +27,5 @@ int32_t NetplayLiveTest_StateDiff(const char *spec);
  * frame the two disagree on, its fields, and the frame before it as the control. */
 int32_t NetplayLiveTest_StreamDiff(const char *spec);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* NETPLAY_LIVE_TEST_H */

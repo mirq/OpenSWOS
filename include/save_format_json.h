@@ -61,7 +61,7 @@ uint8_t SaveJson_GetLoadedPrimaryCountryCode(void);
  * Reuse the save-format struct machinery to load the team/competition JSON. */
 struct TeamFileEx;
 int DataJson_LoadTeamArray(const char *json, int len, struct TeamFileEx *out, int max);
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* SWOS_DATA_JSON wire-in: load a country's teams from data_json/ into the
    teamFileBuf (2-byte host-native count + TeamFileEx records). Returns the team
    count (>0), or -1 to fall back to the binary TEAM.NNN. See LoadTeamFile. */

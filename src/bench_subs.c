@@ -1542,7 +1542,7 @@ static PlayerInfo *getBenchPlayerPointer(uint16_t index, uint16_t *outOrdinal)
  * Main drawing entry for bench/substitutes menu.
  * Called from GameLoop each frame when bench is active.
  * ================================================================ */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* benchXLimit's match value, set by the activation block (SWOS2.s:18776
  * `move.w #27,(benchXLimit)`). Named here because the play-time draw runs
  * before the subs menu has ever set the global. */
@@ -1608,7 +1608,7 @@ DrawBenchAndSubsMenu(void)
         goto draw_bench;
 
     if (_leavingSubsMenu == 0) {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         /* WIDESCREEN: draw the bench occupants during ordinary play.
          *
          * The original returns here, and that is correct FOR 4:3 — not because

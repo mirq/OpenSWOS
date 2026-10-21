@@ -19,7 +19,7 @@
  *
  * The fans' kits (palette entries 10 and 11) are the engine's knowledge too:
  * each baked tile takes the colours the engine gave ITS tile for that cell. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdint.h>
 #include <stdio.h>
@@ -423,4 +423,4 @@ int32_t PitchMap_Condition(int32_t pitchType, uint8_t *entry, uint8_t (*rgb)[3],
     return n;
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

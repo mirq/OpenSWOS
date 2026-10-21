@@ -18,7 +18,7 @@ extern uint16_t _cameraCoordinatesValid;
 /* ---- External C functions ---- */
 extern void SetCameraCoordinates(int16_t targetX, int16_t targetY);
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* The render origin — see display.h. `_cameraX` is the simulation camera, with
  * the constant range [0, 0x2A0-336]; the render may only pan [0, 0x2A0-W], which
  * on a wide view is much smaller. SCALE the one onto the other rather than
@@ -175,7 +175,7 @@ int16_t Sim_DrawCameraY(void)
  * ScrollToCurrent (waitVBlankSync spins, the timer-thread fallback), and
  * zeroing on the first one would reintroduce exactly the 1 px jitter this
  * removes. Menus never publish, so they decay to zero and present unshifted. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 static uint16_t s_scroll_frac_x, s_scroll_frac_y;
 static uint64_t s_scroll_frac_ms;
 
@@ -235,7 +235,7 @@ __attribute__((used, externally_visible))
 void ScrollToCurrent(void)
 {
     _cameraCoordinatesValid = 1;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* SDL: incremental scroll blits are no-ops (see scroll_blit.c).
      * Instead, redraw the whole visible pitch from the chunky tile
      * bank each call — matches swos-port-c's whole-screen chunky
@@ -280,7 +280,7 @@ void MoveView(int16_t newScreenX, int16_t newScreenY)
      * clamping (SetCameraCoordinates), so applying these here clamped the up-pan
      * to the subs bench, which legitimately leaves the playing-field Y range. */
     extern uint16_t _playHighlightFlag;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Not for a .SRP (src/replay_v2.c): it recorded our own simulation camera, which
      * needs no re-fitting -- and the replay rig simulates a DOS recording in a 200-line
      * view, whose camera runs past 0x260, so the clamp moved the picture. */

@@ -9,7 +9,7 @@
 #include "display.h"
 #include "dos_mode.h"
 #include <string.h>
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "pitch_map.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -129,7 +129,7 @@ void DosGfx_BuildPalette(int pitchType, uint8_t *rgb888Out)
         pal6[dst + 1] = kPitchPalettes[pitchType][i * 3 + 1];
         pal6[dst + 2] = kPitchPalettes[pitchType][i * 3 + 2];
     }
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* A pitch drawn from a map takes the condition's entries from the map's
      * `pitch-<condition>` event (src/pitch_map.c). Through the same six bits as the
      * table above, so the game's own map gives the game's own colours exactly. */

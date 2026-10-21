@@ -482,7 +482,7 @@ int _gContestOwnRatings = SWOS_CONTEST_OWN_RATINGS;
 
 static int contestOwnRatings(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     extern int32_t NetplayMatch_Enabled(void);
     if (NetplayMatch_Enabled())
         return 0;

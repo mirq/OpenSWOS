@@ -4,7 +4,7 @@
  * SWOS DOS Reversed by Zlatko Karakaš (https://github.com/zlatkok)
  */
 #include "menus.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* PlatformInitOptions + Settings_Save, for the OPTIONS -> GAMEPLAY row. Guarded
  * because this header reaches platform_sdl.h and therefore SDL.h, which the
  * m68k build has no idea about — and there is no SWOS.ini on the Amiga. */
@@ -2018,7 +2018,7 @@ void OptionsMenuBeforeDraw(void)
      * keyboard's keys, which only SDL runs; PITCHES (17/18) picks the AGA Amiga's
      * pitch set. Each target shows its own and steps GAMEPLAY (14) and EXIT (19) to
      * it; the OCS Amiga has neither, and steps over the row. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     _menuEntries[17].isInvisible = 1;
     _menuEntries[18].isInvisible = 1;
 #else
@@ -2050,7 +2050,7 @@ void ChangePitchStyle(MenuEntry *entry)
 __attribute__((used, externally_visible))
 void ShowControlsMenu(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     extern void ControlsMenu_Show(void);
     ControlsMenu_Show();
 #endif
@@ -2130,7 +2130,7 @@ void ChangeMenuMusic(MenuEntry *entry)
  *      this menu does. g_arcadeOpts/g_arcadeIniPath are the live options and
  *      the resolved ini path, published by main.c.
  * ================================================================ */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* The switch itself, for this menu row and for the online lobby (GameplayStyle_Borrow).
  * `persist` writes it to SWOS.ini, as the OPTIONS row does; a borrowed style does not. */
 void GameplayStyle_Set(int dos, int persist)
@@ -2204,7 +2204,7 @@ void GameplayStyle_GiveBack(void)
 
 void ChangeGameplayStyle(MenuEntry *entry)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* The switch, the view and SWOS.ini: GameplayStyle_Set. */
     extern int _gDosGameplay;
     GameplayStyle_Set(!_gDosGameplay, 1);
@@ -2389,7 +2389,7 @@ void MultiplayerMenuSelected(void)
 #endif
 }
 
-#ifndef SWOS_SDL_BUILD   /* compiled for both Amigas, reached on AGA only (CommonMenuExit) */
+#ifndef SWOS_CHUNKY_BUILD   /* compiled for both Amigas, reached on AGA only (CommonMenuExit) */
 /* ---- The Amiga AGA CREDITS screen (menu_data.c _creditsAgaMenu) ----
  * The SDL builds draw the photos into their chunky frame buffer every frame. Here they
  * are part of the backdrop: grafs_aga/CREDITS.RAW is the menu backdrop with the four
@@ -2469,7 +2469,7 @@ void CreditsAgaDraw(void)
 __attribute__((used, externally_visible))
 void CreditsMenuSelected(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     CreditsMenu_Show();
     CommonMenuExit();
 #elif defined(AGA)
@@ -2541,7 +2541,7 @@ void CommonMenuExit(void)
     /* Here, not in SWOSMainMenuInit: coming back from a sub-menu shows the main menu
      * again without its onInit, and the two buttons came back with it (seen on the
      * Amiga). Every way into the main menu ends in this function. */
-#if !defined(SWOS_SDL_BUILD) && !defined(AGA)
+#if !defined(SWOS_CHUNKY_BUILD) && !defined(AGA)
     /* CREDITS (entry 15): a JSON menu on SDL, a 256-colour picture on the AGA Amiga.
      * The OCS Amiga has neither. */
     _menuEntries[15].isInvisible = 1;

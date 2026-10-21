@@ -14,7 +14,7 @@
 #include "swos_platform.h"
 #include "display.h"   /* extern volatile struct Custom *custom */
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* SDL doesn't link the Amiga bootstrap; provide empty stubs so the
  * SWOS.c hardware-takeover path links cleanly. On Amiga these live
  * in resload.c (with real Exec/DOS calls) and we must NOT redefine. */

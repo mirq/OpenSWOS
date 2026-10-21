@@ -328,7 +328,7 @@ static const uint16_t copperListTemplate[COPPERLIST_SIZE_BYTES / 2] = {
 __attribute__((used, externally_visible))
 void ClearFrontbuffers(void)
 {
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     memset(_frontbufferBase, 0, FRONTBUFFER_DISPLAY_ALLOC_BYTES);
     memset(_frontbufferBaseAlt, 0, FRONTBUFFER_DISPLAY_ALLOC_BYTES);
 #endif
@@ -347,7 +347,7 @@ void ClearFrontbuffers(void)
 __attribute__((used, externally_visible))
 void MirrorFrontbuffer(void)
 {
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     /* The copy starts at the scroll's coarse byte, not at byte 0. A plane row is drawn
      * from that byte for a whole PLANE_STRIDE, so it runs on into the head of the next
      * plane's row -- and the last plane's into the head of the NEXT ROW. The first
@@ -526,7 +526,7 @@ void InitDisplayAndCopper(void)
  * alignment, builds plane pointer tables for double-buffered display.
  * ================================================================ */
 __attribute__((used, externally_visible))
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* Where the display reads the plane row from, in pixels: the scroll position, plus
  * AGA_PITCH_DISPLAY_SHIFT_PX in a match. The FMODE=1 set-up below (12 longs from DDFSTRT
  * 0x20, the pull-back long) put the picture 16px RIGHT of the scroll position: the
@@ -622,7 +622,7 @@ void UpdatePlanePtrsAndBlitParams(void)
      * H7 + pointer-advance scheme showed the right position but revealed the
      * pre-fetch gap = the column, and disagreeing pointer/delay = the jitter).
      * See RandyAGA.txt "Smooth Hardware Scrolling" + "LONG burst mode", docs/AGA.md. */
-#if AGA_FMODE == 3 && !defined(SWOS_SDL_BUILD)
+#if AGA_FMODE == 3 && !defined(SWOS_CHUNKY_BUILD)
     /* FMODE=3: a 64px fetch unit. The window shows pitch pixels [v, v+320), v = the scroll
      * position + AGA_FM3_WINDOW_LEFT_PX. The plane pointer moves in whole units: it is the
      * unit at or before v-1, so the window starts S = v - pointer = 1..64 pixels into the
@@ -675,7 +675,7 @@ void UpdatePlanePtrsAndBlitParams(void)
                           (uint16_t)(lo | (lo << 4) | (h6 << 10) | (h6 << 14)
                                         | (h7 << 11) | (h7 << 15)));
     }
-#if AGA_FMODE == 3 && !defined(SWOS_SDL_BUILD)
+#if AGA_FMODE == 3 && !defined(SWOS_CHUNKY_BUILD)
     }
 #endif
 #else
@@ -726,7 +726,7 @@ void UpdatePlanePtrsAndBlitParams(void)
         /* Add X byte offset (coarse scroll). 4-byte / 32px aligned under
          * FMODE=1 so the 32-bit fetch pointer is 32-bit aligned; 2-byte
          * otherwise. The residual sub-align px is the BPLCON1 fine scroll above. */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         d1 = agaDisplayX();
 #else
         d1 = _cameraXMod320;
@@ -737,7 +737,7 @@ void UpdatePlanePtrsAndBlitParams(void)
          * SCROLL_LEFT_MARGIN_BYTES.. of each plane row; the -4 pull-back below then
          * reads the margin (byte 0..) at coarse=0 = the pitch's extreme-left edge. */
         d1 += SCROLL_LEFT_MARGIN_BYTES;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         /* Outside a match (menus: scroll position 0, so the pull-back below applies)
          * the picture starts at byte 0 of the row, as it did when the row had a 4-byte
          * margin for the pull-back to land on. */
@@ -767,7 +767,7 @@ void UpdatePlanePtrsAndBlitParams(void)
          * coarse. This delay-conditional pull-back is what cancels the coarse pointer
          * step at each 32px boundary, making frac 31->0, 0->1 and 16->17 all per-pixel
          * smooth while keeping every fraction column-free (verified on FS-UAE). */
-#if AGA_FMODE == 3 && !defined(SWOS_SDL_BUILD)
+#if AGA_FMODE == 3 && !defined(SWOS_CHUNKY_BUILD)
         if (AGA_FM3())
         {
             /* the FMODE=3 pointer, computed above, replaces the coarse and the pull-back */
@@ -815,7 +815,7 @@ void UpdatePlanePtrsAndBlitParams(void)
 
     /* Compute and write blit line count (raster of the block-B pointer reload) */
     {
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         /* Block-B elimination: keep the reload raster constant at the bottom of
          * the display (SCREEN_HEIGHT + DIWSTRT) regardless of cameraYMod320, so
          * the mid-screen 8-pointer reload NEVER fires within the visible region.
@@ -1072,7 +1072,7 @@ void DoubleBufferSwapSequence(void)
  *
  * Copies frontbufferMaskBuffer to frontbuffer via blitter A→D copy.
  * ================================================================ */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include <string.h>
 __attribute__((used, externally_visible))
 void BlitterCopyPanelToScreen2(void)
@@ -1181,7 +1181,7 @@ void BlitterCopyPanelToScreen2(void)
     BLT_W(_custom->bltsize, 0x0016u);
 #endif
 }
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 
 /* ================================================================
  * ProcessSpriteBlitQueue  (SWOS2.s line 5522)
@@ -1197,7 +1197,7 @@ __attribute__((used, externally_visible))
 void ProcessSpriteBlitQueue(void)
 {
     volatile uint32_t *queue;
-#if !defined(SWOS_SDL_BUILD) && defined(AGA)
+#if !defined(SWOS_CHUNKY_BUILD) && defined(AGA)
     /* 2026-10-14 (AmigaScope: the undraw was ~10% of a stock A1200's frame, most of it
      * per-blit overhead around one small blit a bob):
      *  - blitter priority ON for the whole batch, not toggled around every wait: the CPU
@@ -1286,7 +1286,7 @@ void ProcessSpriteBlitQueue(void)
     }
 }
 
-#if !defined(SWOS_SDL_BUILD)
+#if !defined(SWOS_CHUNKY_BUILD)
 /* The background undraw (2026-10-14). The same queue as ProcessSpriteBlitQueue, but the CPU
  * only starts the first blit: each later one is started by the blitter-finished interrupt
  * (Int3Handler, swos_amiga_func_stubs.c), which reads the next entry from g_blitQPtr and,
@@ -1344,7 +1344,7 @@ void BlitQueueDrain(void)
  * Same as BlitterCopyPanelToScreen2 but uses CUSTOM base register
  * style (identical logic).
  * ================================================================ */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 __attribute__((used, externally_visible))
 void BlitterCopyPanelToScreen(void)
 {
@@ -1408,9 +1408,9 @@ void BlitterCopyPanelToScreen(void)
     BLT_W(_custom->bltsize, 0x0016u);
 #endif
 }
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 /* The match's BlitterCopyPanelToScreen (2026-10-14): what the bench drew over the pitch is
  * wiped by copying the window back from its twin rows (undrawTwin, display.h), which hold
  * nothing but the pitch -- the 1x mask buffer it copied from is no longer kept in a match.
@@ -1464,7 +1464,7 @@ void RestoreWindowFromTwins(void)
 __attribute__((used, externally_visible))
 void HWSprite_LoadFromSpriteGraphics(uint16_t spriteIndex)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Chunky rewrite: zero the sprite's pixel buffer so subsequent
      * BlitGlyphToSpriteBitmap calls stamp onto a clean background.
      * The Amiga version programs bltdpt + D-only fill; our sprite

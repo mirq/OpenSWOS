@@ -392,7 +392,7 @@ int main(int argc, char **argv)
      * (Was called later, after SDL_Init — moved up so the ini lookup uses it.) */
     swos_save_dir_init();
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Data-file JSON loader self-test (docs/DATA_INTERNAL_JSON.md). Runs before
      * any SDL/game init and exits — `SWOS_DATA_JSON_SELFTEST=1 ./bin/SWOS`. */
     if (getenv("SWOS_DATA_JSON_SELFTEST"))
@@ -1424,4 +1424,4 @@ int main(void)
     startShim();
     return 0;
 }
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

@@ -5,7 +5,7 @@
  */
 #include "text_render.h"
 #include "display.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include <stdint.h>
 #include <stddef.h>
 #endif
@@ -48,7 +48,7 @@ static inline __attribute__((always_inline)) void waitBlit(void)
  *
  * d0=sprIdx  d1=x  d2=y  d3=planeMask
  * ================================================================ */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* SDL build: render a glyph from chunky 8bpp sprite data to the chunky
  * 8bpp frontbuffer. Sprite data layout (built by `blitDispatch`):
  *   - 1 byte per pixel = palette index (0..NUM_COLOURS-1)
@@ -109,7 +109,7 @@ static void blitGlyphBitplanes(uint16_t sprIdx, int16_t dstX, int16_t dstY,
 
 #endif
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 static void blitStringToFrontBuffer(uint16_t sprIdx, int16_t x, int16_t y, uint16_t planeMask)
 {
     /* planeMask is the color value here (DrawMenuText passes `color`).
@@ -206,7 +206,7 @@ static void blitStringToFrontBuffer(uint16_t sprIdx, int16_t x, int16_t y, uint1
     /* Compute destination pointer */
     int16_t wordOffset = ((int16_t)x >> 4) << 1;
     int32_t dstXByteOffset = (int32_t)(int16_t)wordOffset;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     /* In a match the AGA plane row starts with the 4-byte verge margin, which the
      * display and the bobs skip: text drawn over the pitch (MATCH STATS) without it
      * stood 32px left of the bars it belongs in. */
@@ -325,7 +325,7 @@ restart_blit_span:
         goto restart_blit_span;
     }
 }
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 
 /* ================================================================
  * GetTextWidth

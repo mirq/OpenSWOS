@@ -12,7 +12,7 @@
  * uses — so the shared career_copa.c (which finds Copa via Comp_ById /
  * _careerContests) works identically on both ports.
  *
- * WHOLE-FILE gated `#ifndef SWOS_SDL_BUILD`: on the SDL build this file is EMPTY,
+ * WHOLE-FILE gated `#ifndef SWOS_CHUNKY_BUILD`: on the SDL build this file is EMPTY,
  * so there is NO compiled _copaLibertadores there and the dynamic loader installs
  * Copa from JSON (Copa stays a pure-data dynamic comp on SDL — the whole point of
  * the refactor). The file is synced to the Amiga tree and compiled only there.
@@ -22,7 +22,7 @@
  * byte-faithful to the JSON, like the other baked records in competition_data.c)
  * if the JSON Copa record changes. See docs/COMPETITION_DYNAMIC_REFACTOR.md §8.
  */
-#ifndef SWOS_SDL_BUILD
+#ifndef SWOS_CHUNKY_BUILD
 
 #include "game_types.h"
 #include "swos_types.h"
@@ -86,4 +86,4 @@ void CopaBaked_Install(void)
     Comp_Register((Competition *)&_copaLibertadores);
 }
 
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */

@@ -20,7 +20,7 @@
 #include "endian_helpers.h"
 #include "menu_system.h"
 #include "game_types.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "uniform.h"            /* the UNIFORM button (entry 68) */
 #include "custom_team.h"        /* (CUSTOM) where the country would be named */
 #endif
@@ -220,7 +220,7 @@ void SavePositionsAndUpdateLittleCheckmark(void) {
 
 /* ================================================================ */
 __attribute__((used, externally_visible))
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Set while the online lobby shows this screen (online_menus.c): the PLAY button's
  * label -- "CONFIRM", since there it confirms the side rather than starting a match. */
 const char *g_playMatchStartLabel;
@@ -242,7 +242,7 @@ void SetGameStartButtonText(void) {
         if (t1->team.teamControls != TEAM_PLAYER_COACH)
             e->fg = (uintptr_t)_aCoachMatch;
     }
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     if (g_playMatchStartLabel)
         e->fg = (uintptr_t)g_playMatchStartLabel;
 #endif
@@ -519,7 +519,7 @@ void SetPlayerSurnamesOnSidePitch(void) {
  * ================================================================ */
 enum { kUniformEntry = 68 };
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Set by a screen that shows this one for the line-up alone (the custom team editor,
  * whose kits are edited beside it): no UNIFORM button. */
 int32_t g_playMatchNoUniform;
@@ -530,7 +530,7 @@ static void UpdateUniformButton(void) {
     MenuEntry *tactics = &_menuEntries[10];
     MenuEntry *viewOpp = &_menuEntries[7];
     MenuEntry *uniform = &_menuEntries[kUniformEntry];
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     int16_t shown = _squadChangesAllowed && !_viewingOpponentTeam && !_trainingGame &&
                     !g_playMatchNoUniform;
 #else
@@ -575,7 +575,7 @@ static void UpdateUniformButton(void) {
  * first of them. */
 __attribute__((used, externally_visible))
 void UniformSelected(void) {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     UniformMenu_Open(_playMatchTeam1Ptr, _playMatchTeam2Ptr, _isFirstPlayerChoosingTeam != 0);
 #endif
 }
@@ -612,7 +612,7 @@ void SetVariableButtons(void) {
             if (_viewingOpponentTeam) tm = _playMatchTeam2Ptr;
             uint8_t *cname = (uint8_t *)_countriesTable[tm->team.countryNumber];
             cname++;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             /* A custom team (src/custom_team.c) is a database team under another name,
              * so this would name the country of the team it was made from -- BORUSSIA
              * FULDA, made from BRAZIL, "(SOUTH AMERICA)". It says what the team is. */

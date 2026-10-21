@@ -11,9 +11,14 @@ original `SWOS2.s`. **One** source tree builds **both** targets:
 | Amiga m68k (A1200/AGA) | `make -f Makefile.amiga` | `bin/SWOS2` | runs under FS-UAE/WinUAE or real hardware |
 | Nintendo Switch (NX-NXFP2-a64) | `scripts/build_switch.sh` | `bin/SWOS.nss` | a flavour of the SDL build; needs the NDA SDK + SDL fork, neither in this tree. **Not yet linked or run** — see `docs/SWITCH.md` |
 
-`src/` and `include/` are **shared**. Platform divergence is expressed with
-`#ifdef SWOS_SDL_BUILD` (defined by `include/swos_platform.h`, which the SDL
-build force-includes via `-include`; the m68k toolchain never defines it).
+`src/` and `include/` are **shared**. Platform divergence is expressed with two
+macros, both defined by `include/swos_platform.h` (which the SDL build
+force-includes via `-include`; the m68k toolchain defines neither):
+`#ifdef SWOS_CHUNKY_BUILD` — the portable target: 8bpp chunky renderer, no custom
+chips, hosted libc (most gates) — and `#ifdef SWOS_SDL_BUILD` — the SDL library is
+linked (only code that calls SDL). Every SDL flavour defines both; a chunky target
+without SDL (the planned WarpOS RTG build) defines only the first. Gate new code on
+`SWOS_CHUNKY_BUILD` unless it calls SDL.
 A small set of SDL-only sources is excluded from the Amiga build by name —
 see `SDL_ONLY_SRCS` in `Makefile.amiga`.
 

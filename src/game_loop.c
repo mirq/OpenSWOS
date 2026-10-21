@@ -65,7 +65,7 @@ extern int16_t  _oldCameraX, _oldCameraY;
 extern uint16_t _cameraCoordinatesValid;
 
 /* The Amiga AGA match frame overlaps the undraw with the logic (see runFrame's body). */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 #define MATCH_BACKGROUND_UNDRAW 1
 #else
 #define MATCH_BACKGROUND_UNDRAW 0
@@ -190,7 +190,7 @@ static void waitVBlankSyncPresent(uint32_t xorMagic, uint32_t expected, int32_t 
         (void)expected;
     }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* The game loop draws the full frame, then enters waitVBlankSync.
      * On Amiga this spun on `waitingInterrupt` until the VBlank ISR
      * cleared it after a buffer-swap. On SDL we run that swap inline
@@ -253,13 +253,13 @@ static void waitVBlankSync(uint32_t xorMagic, uint32_t expected)
  * keyBuffer), and runs the throttled ISR housekeeping. The
  * Platform_VBlank path also re-renders the same frontbuffer so
  * the paused frame stays on screen. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern int Platform_VBlank(void);
 #endif
 
 static void pauseSpinWaitOneTick(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     Platform_VBlank();
 #else
     uint16_t d0;
@@ -671,7 +671,7 @@ GameFrameResult GameLoop_Frame(void)
     ProcessSpriteBlitQueue();
 #endif
     if (_subsWriteOnly != 0) {
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         { extern void RestoreWindowFromTwins(void); RestoreWindowFromTwins(); }
 #else
         BlitterCopyPanelToScreen();
@@ -746,22 +746,22 @@ GameFrameResult GameLoop_Frame(void)
      * is what DrawReplayFrame now reconstructs and re-projects through the
      * playback camera. Identity at 336 and on the Amiga, where max == pan. */
     SaveCoordinatesForHighlights((int16_t)0xFFFF,
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
                                  (uint16_t)Render_CameraX(),
 #else
                                  _cameraX.s.i,
 #endif
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
                                  (uint16_t)Render_CameraY());
 #else
                                  _cameraY.s.i);
 #endif
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     { extern void ReplayRec_FrameBegin(void); ReplayRec_FrameBegin(); }
 #endif
     PlayEnqueuedSamples();
     UpdateTime();
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Arcade in-match rules (deterministic frame count): golden goal / time limit /
      * penalties. No-op unless _gArcadeMode (checked inside). */
     { extern void Arcade_MatchTick(void); Arcade_MatchTick(); }
@@ -802,7 +802,7 @@ GameFrameResult GameLoop_Frame(void)
     DrawAnimatedPatterns();   /* also ticks _showFansCounter / goal-celebration state */
     RASTER(RASTER_SPRITES);
     DrawSprites();
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     { extern void ReplayRec_CaptureSprites(void); ReplayRec_CaptureSprites(); }
 #endif
     RASTER(RASTER_HUD);
@@ -825,7 +825,7 @@ GameFrameResult GameLoop_Frame(void)
 
     /* Post-frame: save coordinates end marker */
     SaveCoordinatesForHighlights((int16_t)0xFFFE, 0, 0);
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     { extern void ReplayRec_FrameEnd(void); ReplayRec_FrameEnd(); }
 #endif
 
@@ -863,7 +863,7 @@ static GameFrameResult runFrame(void)
 {
     GameFrameResult r;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* A netplay match runs its frames as steps GGPO can repeat, and ends
      * them itself (docs/NETPLAY.md). */
     {
@@ -880,7 +880,7 @@ static GameFrameResult runFrame(void)
     r = GameLoop_Frame();
     if (r == GAME_FRAME_MATCH_OVER || r == GAME_FRAME_QUIT)
         return r;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* ... and compare the state this frame produced against the record. A
      * detour into the highlights or an instant replay deliberately skips
      * this — the rig reports such a frame rather than silently reusing its
@@ -907,7 +907,7 @@ GameLoop(void)
     _saveHighlightScene = 0;
     _fadeAndSaveHighlightScene = 0;
     _spaceReplayTimer = 0;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Record the whole match (src/replay_v2.c): written to LATEST.SRP when it ends. */
     { extern void ReplayRec_MatchStart(void); ReplayRec_MatchStart(); }
 #endif
@@ -952,7 +952,7 @@ GameLoop(void)
     }
 
 end_of_match_flow:
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     { extern void ReplayRec_MatchEnd(void); ReplayRec_MatchEnd(); }
 #endif
     FadeOutToBlack();
@@ -962,7 +962,7 @@ end_of_match_flow:
     ClearAudioActiveFlag();
 
     int arcadeNoReplayMenu = 0;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Arcade returns straight to attract after the match — skip the friendly
      * "watch replay / exit" menu (it would block on cabinet input). */
     { extern int _gArcadeMode; arcadeNoReplayMenu = _gArcadeMode; }
@@ -990,7 +990,7 @@ end_of_match_flow:
     }
 
 cleanup_and_return:
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     { extern void ReplayRec_MatchEnd(void); ReplayRec_MatchEnd(); }   /* quit mid-match: keep it */
 #endif
     StopAudioAndClearFlags();
@@ -1012,7 +1012,7 @@ cleanup_and_return:
  * argument). Every camera constant is f(view) and lands on the DOS numbers at
  * 200: SIM_CAMERA_MAX_Y = 664, which is swos.asm:7539.
  * ==================================================================== */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern void Platform_ViewChanged(void);
 
 static int s_viewSavedW, s_viewSavedH;
@@ -1165,11 +1165,11 @@ ViewHighLightsMain(TeamGame *leftTeam, TeamGame *rightTeam)
      * and only land on the DOS numbers once the view is set.
      * MatchViewLeave is in viewAndRestoreMenu, so every exit path is covered.
      * A .SRP is shown in the view ITS match was played in, whatever this player's is. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     { extern void ReplayV2_UseRecordedView(void); ReplayV2_UseRecordedView(); }
 #endif
     MatchViewEnter();
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     { extern void ReplayV2_ApplyRecordedSimView(void); ReplayV2_ApplyRecordedSimView(); }
 #endif
     /* Set the highlight flag AFTER InitGameSaveTeams' fade-out. The flag is what
@@ -1178,7 +1178,7 @@ ViewHighLightsMain(TeamGame *leftTeam, TeamGame *rightTeam)
      * colours. The DOS palette is only correct once the pitch is on screen, which
      * begins with the swap below. */
     _playHighlightFlag = 1;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     { extern void Replay_ResetBallCamera(void); Replay_ResetBallCamera(); }
 #endif
     /* Both are f(view), not literals — see display.h. 168/313 at the port's
@@ -1186,7 +1186,7 @@ ViewHighLightsMain(TeamGame *leftTeam, TeamGame *rightTeam)
     ReplayUpdateCameraAndSwapBuffers(SIM_CAMERA_CENTRE_X, SIM_CAMERA_BENCH_Y);
     UpdatePlanePtrsAndBlitParams();
     ReadTimerDelta();
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Load + start the SFX bank so the replay isn't silent. Unlike the live-match
      * path (StartMatchSequence), the non-arcade highlights/replay viewer never
      * loaded it, so RPL/HIL playback had no crowd ambience or recorded SFX. The
@@ -1335,7 +1335,7 @@ PlayInstantReplayLoop(void)
 
         /* Draw replay frame and handle fade */
         DrawReplayFrame();
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         { extern int _gArcadeMode; extern int Arcade_DrawAttractOverlay(void);
           if (_gArcadeMode && Arcade_DrawAttractOverlay()) goto abort_replay; }
 #endif
@@ -1382,7 +1382,7 @@ PlayHighlightsLoop(void)
     ReadTimerDelta();
 
     for (;;) {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         /* Window-close (X) during replay: the SDL event pump (DrawReplayFrame's
          * vblank) sets _quitToDos, but this loop never polled it, so the process
          * kept running after the window closed. Exit cleanly via the normal stop
@@ -1392,7 +1392,7 @@ PlayHighlightsLoop(void)
 #endif
         /* Paused poll loop */
         while (_paused != 0
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
                && _quitToDos == 0
 #endif
               ) {
@@ -1425,7 +1425,7 @@ PlayHighlightsLoop(void)
 
         /* Draw replay and handle fade */
         DrawReplayFrame();
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         { extern int _gArcadeMode; extern int Arcade_DrawAttractOverlay(void);
           if (_gArcadeMode && Arcade_DrawAttractOverlay()) goto abort_replay_on_fire; }
 #endif
@@ -1463,7 +1463,7 @@ advance_to_next_highlight:
     _hilSceneNumber += 1;
     if (_numScenesInHilFile == _hilSceneNumber)
         goto stop_replay_and_return;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* A .SRP is one scene with its own frame stream (src/replay_v2.c). */
     {
         extern int32_t ReplayV2_Loaded(void);
@@ -1487,7 +1487,7 @@ advance_to_next_highlight:
          * Carry the value as a real pointer instead. */
         uint8_t *baseAddr = _hilStartOfGoalsBuffer + offset;
         uint8_t *endAddr  = baseAddr + 19000u;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         /* An RPL is a whole match in one ~1 MB scene that can't be addressed by
          * the 19000-B scene math — dos_replay_load.c loaded it into a dedicated
          * buffer; stream that as the single scene. */

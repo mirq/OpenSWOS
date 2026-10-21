@@ -7,7 +7,7 @@
 #include "deterministic.h"
 #include "game_types.h"
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Recorded-game replay pins BOTH generators to the recording's
  * fixedRandomValue (docs/TESTS.md 5c) — without it nothing is reproducible.
  * -1 (the default) leaves the real PRNGs alone. Defined in replay_test.c. */

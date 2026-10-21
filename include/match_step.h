@@ -9,7 +9,7 @@
 #ifndef MATCH_STEP_H
 #define MATCH_STEP_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "swos_types.h"
 #include "game_types.h"
@@ -68,5 +68,5 @@ void    MatchStep_ApplyInput(const MatchPlayerInput in[MATCH_PLAYERS], int32_t f
  * match is played a frame at a time nothing else may (ReplayTest_OwnsGameTick). */
 void    MatchStep_AdvanceClock(void);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* MATCH_STEP_H */

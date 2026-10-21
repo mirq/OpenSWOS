@@ -19,7 +19,7 @@
  * read that only a particular squad performs shows up here in seconds, where the corpus
  * would never have loaded that squad at all.
  */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdio.h>
 #include <string.h>
@@ -120,4 +120,4 @@ void TeamAudit_Run(void)
     fflush(stdout);
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

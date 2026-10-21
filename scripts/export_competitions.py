@@ -40,7 +40,7 @@ LEAGUE_NAME_OFFSET = 33
 def preprocess() -> str:
     out = subprocess.run(
         ["gcc", "-E", "-P", "-I", os.path.join(REPO, "src"),
-         "-DSWOS_SDL_BUILD", "-DCOMPETITION_DATA_C=1", SRC],
+         "-DSWOS_SDL_BUILD", "-DSWOS_CHUNKY_BUILD", "-DCOMPETITION_DATA_C=1", SRC],
         capture_output=True, text=True, check=True).stdout
     return out
 

@@ -4,7 +4,7 @@
 #ifndef P2P_MENU_H
 #define P2P_MENU_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "swos_types.h"
 
@@ -16,5 +16,5 @@
 void P2PMenu_Init(void);
 void P2PMenu_Show(void);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* P2P_MENU_H */

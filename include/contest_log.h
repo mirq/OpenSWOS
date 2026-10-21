@@ -8,7 +8,7 @@
 #ifndef CONTEST_LOG_H
 #define CONTEST_LOG_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdint.h>
 #include "game_types.h"

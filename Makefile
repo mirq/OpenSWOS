@@ -789,12 +789,12 @@ $(OBJDIR)/ggpo/%.o: $(GGPO_DIR)/lib/ggpo/%.cpp $(BUILD_FLAGS_STAMP)
 	$(CXX) $(GGPO_CXXFLAGS) -c $< -o $@
 
 # Our C++ shim needs GGPO's include path AND our own build defines: compiled
-# with GGPO_CXXFLAGS alone, SWOS_SDL_BUILD/SWOS_NETPLAY are undefined and the
-# whole file preprocesses away to an empty object that links without error and
-# resolves nothing.
+# with GGPO_CXXFLAGS alone, SWOS_SDL_BUILD/SWOS_CHUNKY_BUILD/SWOS_NETPLAY are
+# undefined and the whole file preprocesses away to an empty object that links
+# without error and resolves nothing.
 $(OBJDIR)/netplay_netem_install.o: $(SRCDIR)/netplay_netem_install.cpp $(BUILD_FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CXX) $(GGPO_CXXFLAGS) -DSWOS_SDL_BUILD=1 -DSWOS_NETPLAY=1 -Iinclude -c $< -o $@
+	$(CXX) $(GGPO_CXXFLAGS) -DSWOS_SDL_BUILD=1 -DSWOS_CHUNKY_BUILD=1 -DSWOS_NETPLAY=1 -Iinclude -c $< -o $@
 
 $(OBJDIR)/enet/%.o: $(ENET_DIR)/%.c $(BUILD_FLAGS_STAMP)
 	@mkdir -p $(dir $@)

@@ -7,7 +7,7 @@
 #include "team_colors.h"   /* SHIRT_* kit-pattern constants */
 #include "game_types.h"
 #include "dos_mode.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "dos_graphics.h"   /* DosGfx_DecodePlanarSprite, DOS_TO_AMIGA_OFFSET */
 #include <stdio.h>          /* snprintf */
 #include <stdlib.h>         /* malloc / calloc */
@@ -63,7 +63,7 @@ extern uint8_t _facesFrequency[];
 extern void *_skinAndHairColorConversionTable[];
 extern GoalieFaceState _goalieFaces;     /* GK face/skin state (was 4+2 adjacency-aliased globals) */
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* ================================================================
  * DOS player/keeper/bench sprite overlay (PC-only, gDosGraphics)
  *
@@ -271,13 +271,13 @@ static void dos_prepare_sprites(int kit1, int kit2)
     for (int i = 0; i < DOS_SPRITE_TABLE_SLOTS; i++)
         if (s_dosSprite[i]) table[i] = s_dosSprite[i];
 }
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 
 /* ---- Helper: convert a range of sprites with a color table ---- */
 static void convertSpriteRange(uint16_t start, uint16_t end, uint16_t *colorTable)
 {
     uint16_t d0;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Jaguar sprites carry four shades of each kit colour, so the 16-entry table
      * the game just built becomes a 256-entry one: each shade of each kit slot to
      * that shade of the team's colour, everything else as the game says
@@ -354,7 +354,7 @@ void ConvertColorsAndTextSprites(TeamGame *team1, TeamGame *team2)
     /* Force read from memory — LTO must not use a stale cached value */
     ProcessImageCommandStream(_menuColorAndTextScript, *(uint8_t * volatile *)&_menuImageStreamBaseEnd);
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* PC-only: drop the DOS player/keeper/bench sprites into the table NOW —
      * before the kit/skin colour conversions below — so those conversions
      * recolour the DOS sprites (16-colour, same kit indices as the Amiga)

@@ -43,7 +43,7 @@
  * _s_pitchFullPtrs (pitch.c) mirrors the fan tile slots of _pitchDatBuffer at full
  * pointer width for the renderer; SimState_Load rebuilds it from the slots.
  */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include <stdio.h>      /* SimState_DescribePortableByte only; the m68k build has no stdio */
 #endif
 #include "sim_state.h"
@@ -892,7 +892,7 @@ static uint32_t portable_stride(const SimLayout *l)
     return n;
 }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Which FIELD a differing portable byte belongs to. A diff that says "region _ballSprite,
  * byte 42" leaves the reader to redo by hand what this file already knows -- walking the
  * layout to turn that into an element and a field. The native offset is the useful half:
@@ -935,9 +935,9 @@ int SimState_DescribePortableByte(int32_t index, uint32_t offset, char *out, uin
     snprintf(out, outLen, "byte %u", offset);
     return 0;
 }
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Mark the bytes of region `index`'s portable encoding that are LOCAL fields -- this
  * display's, not the match's, and zero in the hash. `mask` is the region's portable size;
  * 1 = local. So a diff of two peers' states can skip what their checksum skips. */

@@ -46,7 +46,7 @@
  */
 #include "netplay_setup.h"
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -437,4 +437,4 @@ void     NetplaySetup_ArmTieRules(int32_t armed) { (void)armed; }
 void     NetplaySetup_TakeTieRules(void) {}
 
 #endif /* SWOS_NETPLAY */
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

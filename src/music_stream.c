@@ -5,7 +5,7 @@
  * public domain) a tick's worth at a time on the audio thread, then brought to the
  * device's rate by linear interpolation when the two differ.
  */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -141,4 +141,4 @@ void MusicStream_Render(int16_t *out, int32_t frames, int32_t rate, int32_t gain
     }
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

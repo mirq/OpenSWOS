@@ -25,7 +25,7 @@
 #ifndef MM_CLIENT_H
 #define MM_CLIENT_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "swos_types.h"
 
@@ -162,5 +162,5 @@ int32_t MmClient_SelfTest(const char *host, uint16_t port);
  * `role` is "host" or "join". scripts/matchmaker_pair_test.sh runs the pair. */
 int32_t MmClient_PairTest(const char *role, const char *host, uint16_t port);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* MM_CLIENT_H */

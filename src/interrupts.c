@@ -233,7 +233,7 @@ void _Int3TimerHandler(void)
     /* debugMode LINE-A trap skipped (dead code in non-debug builds) */
 
     /* isr_update_ticks_and_input */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* On Amiga this IS the VBlank interrupt, so BOTH counters advance exactly
      * once per game-loop iteration. On SDL they are driven from a wall clock by
      * two threads — fine for play, but gameplay reads them (currentTick gates
@@ -269,7 +269,7 @@ void _Int3TimerHandler(void)
      * one step of the tick apart. */
     if (_paused == 0 && (_gDosGameplay || _showingUserStats == 0))
     {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         { extern int ReplayTest_OwnsGameTick(void); extern int32_t NetplayMatch_OwnsClock(void);
           if (!ReplayTest_OwnsGameTick() && !NetplayMatch_OwnsClock()) _currentGameTick++; }
 #else

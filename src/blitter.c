@@ -275,7 +275,7 @@ static void blitterSpan4Planes(uint16_t x, uint16_t y, uint16_t width,
  *   d0 = x, d1 = y, d2 = width, d3 = height, d4 = color
  *   a0 = frontbufferBasePtr (loaded internally)
  * ================================================================ */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* SDL build: write to the chunky 8bpp frontbuffer. 1 byte per pixel =
  * palette index. Row stride = _screen_width. */
 static void fillRectChunky(uint16_t x0, uint16_t y0, uint16_t w, uint16_t h,
@@ -302,7 +302,7 @@ void FillRectangle(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t colo
     uint16_t wrapRows;
     int16_t overflow;
 
-#ifndef SWOS_SDL_BUILD
+#ifndef SWOS_CHUNKY_BUILD
     /* Amiga: hardware-scroll wrap offsets are part of how the display
      * pans its bitplane base pointer — coordinates need to be shifted
      * by the current wrap offset to land in the right physical row.
@@ -327,7 +327,7 @@ void FillRectangle(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t colo
      * for a rectangle that straddles the bottom edge — rare, but the
      * wrap math is harmless when y starts in-range). */
     wrapRows = 0;
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
     /* AGA: no wrap -- the display reads the 2x-tall buffer straight down from
      * cameraYMod320 (see blitStringToFrontBuffer). Only clip at the buffer's end. */
     overflow = (int16_t)(y + h - 2 * SCREEN_HEIGHT);
@@ -344,7 +344,7 @@ void FillRectangle(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t colo
     }
 #endif
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     if (buf) {
         fillRectChunky(x, y, w, h, color, buf);
         if (wrapRows != 0)
@@ -376,7 +376,7 @@ void FillRectangle(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t colo
 static void blitterRectRowMasked(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
                                  uint8_t *mask, uint8_t *buf)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* SDL chunky path: plain rectangle copy from mask → dst. The Amiga
      * version below programs the chip blitter with a USEA+USEB+USED
      * masked minterm, which on SDL is a no-op (writes hit the stub
@@ -465,7 +465,7 @@ __attribute__((used, externally_visible))
 void RectRowMaskedApplyScreenOffset(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
                                      uint8_t *mask, uint8_t *buf)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Do NOT add cameraX/YMod320 on SDL — those are Amiga hardware-scroll
      * wrap offsets for the panning bitplane base pointer, and every other
      * SDL render path (blitChunkySprite, blitStringToFrontBuffer,
@@ -492,7 +492,7 @@ void RectRowMaskedApplyScreenOffset(uint16_t x, uint16_t y, uint16_t w, uint16_t
 __attribute__((used, externally_visible, optimize("no-tree-loop-distribute-patterns")))
 void BlitSpritePlanar_Word(uint16_t spriteIndex)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* 8bpp chunky sprites have implicit transparency (pixel == 0), so
      * there is no separate mask buffer to build. This function is a
      * no-op on SDL — called at the end of Text2Sprite to finalize
@@ -592,7 +592,7 @@ void BlitSpritePlanar_Word(uint16_t spriteIndex)
             }
         }
     }
-#endif /* !SWOS_SDL_BUILD for BlitSpritePlanar_Word */
+#endif /* !SWOS_CHUNKY_BUILD for BlitSpritePlanar_Word */
 }
 
 
@@ -605,7 +605,7 @@ void BlitSpritePlanar_Word(uint16_t spriteIndex)
 __attribute__((used, externally_visible, optimize("no-tree-loop-distribute-patterns")))
 void BlitSpritePlanar_Word_StridedDest(uint16_t spriteIndex)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* 8bpp chunky sprites have implicit transparency (pixel == 0) so
      * no separate mask buffer exists; same rationale as the sibling
      * BlitSpritePlanar_Word. Amiga path kept for the #else branch. */
@@ -658,7 +658,7 @@ void BlitSpritePlanar_Word_StridedDest(uint16_t spriteIndex)
         }
     }
     }
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 }
 
 
@@ -671,7 +671,7 @@ void BlitSpritePlanar_Word_StridedDest(uint16_t spriteIndex)
 __attribute__((used, externally_visible, optimize("no-tree-loop-distribute-patterns")))
 void BlitSpritePlanar_Long_StridedDest(uint16_t spriteIndex)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* See sibling BlitSpritePlanar_Word — no separate mask on 8bpp. */
     (void)spriteIndex;
     return;
@@ -722,7 +722,7 @@ void BlitSpritePlanar_Long_StridedDest(uint16_t spriteIndex)
         }
     }
     }
-#endif /* !SWOS_SDL_BUILD */
+#endif /* !SWOS_CHUNKY_BUILD */
 }
 
 
@@ -740,7 +740,7 @@ void BlitSpritePlanar_Long_StridedDest(uint16_t spriteIndex)
  *   planeMask      - 4-bit mask: which planes get the glyph color
  *   dstSpriteIndex - destination sprite index
  * ================================================================ */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Chunky 8bpp rewrite of BlitGlyphToSpriteBitmap. The Amiga version
  * programs the blitter with bltcon0/bltcon1/bltsize to stamp a 1-bit
  * glyph mask into the 4 bitplanes of a destination sprite, setting
@@ -999,7 +999,7 @@ void BlitGlyphToSpriteBitmap(uint16_t glyphIndex, uint16_t xOff, uint16_t yOff,
     waitBlit();
     }
 }
-#endif /* !SWOS_SDL_BUILD for BlitGlyphToSpriteBitmap */
+#endif /* !SWOS_CHUNKY_BUILD for BlitGlyphToSpriteBitmap */
 
 
 /* ================================================================

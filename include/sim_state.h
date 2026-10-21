@@ -154,7 +154,7 @@ int      SimState_PointerIdentity(const void *p, uint32_t *kind, uint32_t *ident
 /* Which field a differing byte of the PORTABLE encoding belongs to: writes something like
  * "[3 of 40] +42 word16" -- the element, and the NATIVE offset, which is what the struct in
  * game_types.h names. Returns 0 (and "byte N") when the region has no usable layout. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 int      SimState_DescribePortableByte(int32_t index, uint32_t offset, char *out, uint32_t outLen);
 /* Which bytes of region `index`'s portable encoding are LOCAL fields (1 = local): zero in
  * the hash peers compare, so a diff of two peers should skip them too. `mask` must hold

@@ -38,7 +38,7 @@ extern uint8_t _rawAssetLoadBuffer[];   /* staging buffer for both builds' overl
 __attribute__((used, externally_visible))
 void LoadOverlayToFrontbuffer(const uint8_t *path)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     uint32_t ovlSize = 0;
     LoadFileEx((uint8_t *)path, _rawAssetLoadBuffer, &ovlSize);
 
@@ -108,7 +108,7 @@ void LoadOverlayToFrontbuffer(const uint8_t *path)
 __attribute__((used, externally_visible, noinline))
 void FrontEndPreLoopSetup(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* SWOS_DATA_JSON: rebuild normal-country competition tables from data_json/
        before any menu reads competitionsTable[]. No-op unless the env var is set. */
     extern void DataJson_InstallCompetitionGraph(void);
@@ -178,7 +178,7 @@ void FrontEndMainLoop(void)
 {
     ReadTimerDelta();
     FrontEndPreLoopSetup();
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* --menu=<name>: open a JSON-only menu first; leaving it lands on the main menu --
      * re-unpacked from its packed bytes, so put it back the way every main-menu button
      * does (CommonMenuExit). Without it CONTINUE and SAVE came back as two blank, live

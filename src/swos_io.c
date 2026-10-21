@@ -78,7 +78,7 @@ int atoi(const char *s) {
 
 #define SWOS_HDR_SIZE 4u
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -107,7 +107,7 @@ void swos_io_free(void *p)
     free(block);
 }
 
-#else  /* !SWOS_SDL_BUILD — Amiga */
+#else  /* !SWOS_CHUNKY_BUILD — Amiga */
 
 extern uint8_t *AllocMemAny(uint32_t sz);
 extern void     FreeMemAny(void *addr, uint32_t sz);

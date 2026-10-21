@@ -24,7 +24,7 @@
 /* Amiga-both (AGA + OCS): the rig drives the general copper scroll path, which
  * exists in both depths. Relaxed from AGA-only so OCS can be captured for the
  * scroll-corruption comparison. */
-#if !defined(SWOS_SDL_BUILD)
+#if !defined(SWOS_CHUNKY_BUILD)
 
 /* ---- pitch setup ---- */
 extern uint16_t _pitchNumberAndType;
@@ -338,7 +338,7 @@ static void pstMoveSprites(void)
     }
 }
 
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
 extern void SwapBuffersAndCameraViewState(void);
 
 /* Full vertical beam position (0..~312 PAL): VPOSR bit0 = V8, VHPOSR high byte = V7..V0. */
@@ -511,7 +511,7 @@ void PitchScrollTest(void)
          * VBlank here (the ISR also does the buffer swap) means the column blit
          * below runs while the bitplanes are idle. gdb-toggle g_pstVBlankBlit=0
          * to A/B against the old mid-frame-blit behaviour. */
-#if defined(AGA) && !defined(SWOS_SDL_BUILD)
+#if defined(AGA) && !defined(SWOS_CHUNKY_BUILD)
         /* Beam-gated throttle + inline swap (see pstWaitVBlankAndSwap): the rig's Level-3
          * ISR over-fires, so WaitForVSync alone doesn't hold the loop to one frame. */
         if (g_pstVBlankBlit) pstWaitVBlankAndSwap();

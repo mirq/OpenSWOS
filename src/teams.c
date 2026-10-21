@@ -19,7 +19,7 @@
 #include "career_status.h"
 #include "play_match_menu.h"
 #include "career_init.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include <stdlib.h>            /* getenv — SWOS_DATA_JSON team-load wire-in */
 #endif
 
@@ -257,7 +257,7 @@ static void setLoadedTeamsGlobalNumbers(void)
  *   in:  d0 = extNumber (uint8_t effective)
  *   out: d0 = 0 (success) or 1 (error), Z flag reflects d0
  * ================================================================ */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "endian_helpers.h"
 /* Team files are stored big-endian (Amiga m68k native). On a little-endian
  * host, every multi-byte field would otherwise read byte-swapped. Within a
@@ -340,7 +340,7 @@ int16_t LoadTeamFile(uint16_t extNumber)
             _panicReasonCode = 0x1939;
             PanicHaltLoop();
         }
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         byteswap_loaded_team_file();
 #endif
         setLoadedTeamsGlobalNumbers();
@@ -348,7 +348,7 @@ int16_t LoadTeamFile(uint16_t extNumber)
         _lastLoadedExtNumber = ext8;
 
         int json_loaded = 0;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         /* SWOS_DATA_JSON: load this country's teams from data_json/ instead of the
          * binary TEAM.NNN. Falls back to the binary file on any miss (country not
          * in the corpus, file missing, parse error). The JSON path writes
@@ -391,7 +391,7 @@ int16_t LoadTeamFile(uint16_t extNumber)
                 _panicReasonCode = 0x1939;
                 PanicHaltLoop();
             }
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
             byteswap_loaded_team_file();
 #endif
         }

@@ -5,7 +5,7 @@
  */
 #include "panic.h"
 #include "text_render.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include <stdio.h>  /* stderr panic log + gdb trap below — SDL host only; the m68k toolchain is freestanding (no stdio.h) */
 #endif
 
@@ -74,7 +74,7 @@ static uint8_t *panicLookupMessagePtr(uint16_t code)
 __attribute__((used, externally_visible, noreturn))
 void PanicHaltLoop(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* SDL-only debug aid: log the panic reason and trap so gdb catches it.
      * The Amiga build is freestanding (no stdio) and wants the original
      * fade-and-spin-with-hex-code behaviour below, so this is gated out. */

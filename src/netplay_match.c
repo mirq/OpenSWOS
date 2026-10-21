@@ -2673,4 +2673,4 @@ int32_t NetplayMatch_Finish(void)
     return code;
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */

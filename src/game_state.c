@@ -22,7 +22,7 @@ extern uint32_t _gameTime;               /* BCD-encoded: byte3=ones, byte2=tens,
 extern uint16_t _secondsSwitchAccumulator;
 extern uint16_t _copyTimeSprite;
 extern Sprite   _currentTimeSprite;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Widescreen 3rd score-panel tile per row — see sprite_data.c. */
 extern Sprite   _gridUpperRowExtraSprite;
 extern Sprite   _gridMiddleRowExtraSprite;
@@ -84,7 +84,7 @@ extern uint16_t _secondLeg;
 extern FixedPoint _cameraX;
 extern FixedPoint _cameraY;
 extern uint16_t _lastFrameTicks;
-#if defined(RASTER_BARS) && !defined(SWOS_SDL_BUILD)
+#if defined(RASTER_BARS) && !defined(SWOS_CHUNKY_BUILD)
 static uint16_t _rasterFps;           /* the clock's number in a -DRASTER_BARS build */
 #endif
 extern uint16_t _gameState;
@@ -591,7 +591,7 @@ position_sprites:
     _gridUpperRowRightSprite.x.s.i = Render_CameraX() + HUD_MARGIN + 168;
     _gridUpperRowRightSprite.y.s.i = d0;
     _gridUpperRowRightSprite.z.s.i = 9000;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     _gridUpperRowExtraSprite.x.s.i = Render_CameraX() + HUD_MARGIN + HUD_WIDTH - 168;
     _gridUpperRowExtraSprite.y.s.i = d0;
     _gridUpperRowExtraSprite.z.s.i = 9000;
@@ -606,7 +606,7 @@ position_sprites:
     _gridMiddleRowRightSprite.x.s.i = Render_CameraX() + HUD_MARGIN + 168;
     _gridMiddleRowRightSprite.y.s.i = d0;
     _gridMiddleRowRightSprite.z.s.i = 9000;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     _gridMiddleRowExtraSprite.x.s.i = Render_CameraX() + HUD_MARGIN + HUD_WIDTH - 168;
     _gridMiddleRowExtraSprite.y.s.i = d0;
     _gridMiddleRowExtraSprite.z.s.i = 9000;
@@ -621,7 +621,7 @@ position_sprites:
     _gridBottomRowRightSprite.x.s.i = Render_CameraX() + HUD_MARGIN + 168;
     _gridBottomRowRightSprite.y.s.i = d0;
     _gridBottomRowRightSprite.z.s.i = 9000;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     _gridBottomRowExtraSprite.x.s.i = Render_CameraX() + HUD_MARGIN + HUD_WIDTH - 168;
     _gridBottomRowExtraSprite.y.s.i = d0;
     _gridBottomRowExtraSprite.z.s.i = 9000;
@@ -1020,7 +1020,7 @@ last_minute_in_progress:
     }
 
 no_update_to_time:
-#if defined(RASTER_BARS) && !defined(SWOS_SDL_BUILD)
+#if defined(RASTER_BARS) && !defined(SWOS_CHUNKY_BUILD)
     /* -DRASTER_BARS (include/raster_bars.h): the clock shows the FRAME RATE instead of the
      * minutes -- "50mins." is a solid 50 fps, "25mins." a second in which frames were
      * missed. Frames completed per 50 vertical blanks, so one slow frame in a second
@@ -1052,7 +1052,7 @@ not_end_of_second_extra:
         uint16_t yOff = 0;
         uint16_t sprIdx;
         uint16_t digitSprite;
-#if defined(RASTER_BARS) && !defined(SWOS_SDL_BUILD)
+#if defined(RASTER_BARS) && !defined(SWOS_CHUNKY_BUILD)
         uint8_t dHundreds = 0, dTens = (uint8_t)(_rasterFps / 10), dOnes = (uint8_t)(_rasterFps % 10);
 #else
         uint8_t dHundreds = GAMETIME_HUNDREDS, dTens = GAMETIME_TENS, dOnes = GAMETIME_ONES;

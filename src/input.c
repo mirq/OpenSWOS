@@ -9,7 +9,7 @@
  * On the Amiga these point at the live Paula joystick + CIAA fire-button
  * registers. On the SDL build we redirect them to software state that
  * input_sdl.c writes once per SDL_PollEvent pass. */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 extern uint16_t _joy0Dat;
 extern uint16_t _joy1Dat;
 extern uint8_t  _ciaa_pra;

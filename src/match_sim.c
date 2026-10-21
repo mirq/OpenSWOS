@@ -19,7 +19,7 @@
 
 #include "match_sim.h"
 #include "test_rules.h"
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include <stdio.h>          /* MatchSim_LogSkillRoll */
 #include <stdlib.h>         /* getenv: SWOS_SKILL_DEBUG */
 #endif
@@ -1429,7 +1429,7 @@ int16_t GetPlayerPricePercentageChange(int16_t factor, TeamFile *teamFile,
  *      playerBase = GetPlayer result (a5 in asm)
  *      pi         = PlayerInfo for this player in TeamGame (a6 in asm)
  * ================================================================ */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* The factor each starting player's skills were scaled by at kick-off, as rolled
  * (ScaleSkill clamps it to 75..125). Written for the log line below, read by nothing
  * the match does -- so it is not match state, and not in the rollback registry. */
@@ -1487,7 +1487,7 @@ void AdjustPlayerSkills(uint16_t playerIdx, TeamFile *teamFile,
         }
     }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     if (getenv("SWOS_SKILL_DEBUG"))
         fprintf(stderr, "[skill] %s slot %u: file price %d, computed %d -> %d%% before the random, controls %d\n",
                 teamGame == &_topTeamInGame ? "top" : "bottom", (unsigned)playerIdx,
@@ -1497,7 +1497,7 @@ void AdjustPlayerSkills(uint16_t playerIdx, TeamFile *teamFile,
 #endif
     /* Apply team view offset + rank + random to factor */
     d4 = GetPlayerPricePercentageChange(d4, teamFile, callerD0);
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     if (playerIdx < 11)                 /* for MatchSim_LogSkillRoll only; never read back */
         s_skillFactor[teamGame == &_topTeamInGame ? 0 : 1][playerIdx] = d4;
 #endif
@@ -1639,7 +1639,7 @@ void ApplyTeamTactics(TeamGame *teamGame)
     tf->tactics = savedTactics;
 }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* SWOS rolls every player's form for the match at kick-off (AdjustPlayerSkills): their
  * skills are scaled by a factor around 100%, from their price, the team's standing and
  * a random draw seeded per player -- the reason a side can feel sharper in one match

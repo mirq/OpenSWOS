@@ -30,7 +30,7 @@ void     __attribute__((used, externally_visible)) SetTeamSecondaryColors(
     TeamGame *team);
 void     __attribute__((used, externally_visible)) SetInGameTeamColors(uint16_t secondaryKitFlags, TeamFile *team1File, TeamFile *team2File);
 void     __attribute__((used, externally_visible)) SetInGameTeamsPrimaryColors(TeamFile *team1File, TeamFile *team2File);
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 void     SetInGameTeamsFirstKits(TeamFile *team1File, TeamFile *team2File);   /* chosen kits: no clash rule */
 #endif
 uint16_t __attribute__((used, externally_visible)) ConvertPlayerDressColor(uint16_t color);

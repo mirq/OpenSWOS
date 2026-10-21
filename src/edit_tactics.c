@@ -2356,7 +2356,7 @@ end:
 
 /* --- Externs for EditTeams --- */
 extern uint8_t *_editTeamsSelectedTeam;   /* pointer to source team data */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "custom_team.h"    /* the EDIT TEAM screen also edits a custom team for online play */
 #endif
 extern uint16_t _saveCustomTeams;
@@ -2491,7 +2491,7 @@ void EditTeamsFinish(void)
 __attribute__((used, externally_visible))
 void EditTeamsUndo(void)
 {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* A custom team for online play (src/custom_team.c): this button is LINEUP there,
      * the team screen a match shows, as in SWOS 2020's custom team editor. */
     if (CustomTeam_Editing()) {
@@ -2775,7 +2775,7 @@ void InitEditTeamsMenu(void)
     _menuEntries[0x460 / 56].isInvisible = 0;
     if (_teamIsImported != 0)
         _menuEntries[0x460 / 56].isInvisible = 1;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* A custom team for online play: IMPORT stays (another database team can be taken
      * at any time), and the UNDO button (entry 22) is LINEUP. */
     if (CustomTeam_Editing()) {
@@ -2941,7 +2941,7 @@ retry:
     {
         uint16_t teamCount = *(uint16_t *)_teamFileBuffer;
         uint32_t fileSize = (uint32_t)teamCount * 684 + 2;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         /* Convert host-native → BE in-place before write. Pre-fix bug
          * (commit e986990) used byteswap_loaded_team_file in both
          * directions, but that function reads the loop count via
@@ -2952,7 +2952,7 @@ retry:
         byteswap_team_file_to_disk();
 #endif
         int16_t result = WriteFile(_aCustomsEdt, _teamFileBuffer, fileSize);
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         /* Restore host-native after write — buffer is BE-on-disk now
          * (just-written bytes), so re-swap with the load-time helper. */
         byteswap_loaded_team_file();
@@ -3014,7 +3014,7 @@ void ImportTeamsMenu(void)
             *dst++ = *src++;
 
         /* Restore saved values */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         /* A custom team for online play IS the database team it was made from, renamed
          * and redressed -- so it takes that team whole, number included: the number is
          * what its players are checked against (CustomTeam_Allowed). */

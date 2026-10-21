@@ -4,7 +4,7 @@
 #ifndef CONTROLS_MENU_H
 #define CONTROLS_MENU_H
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "swos_types.h"
 
@@ -16,5 +16,5 @@
 void ControlsMenu_Init(void);
 void ControlsMenu_Show(void);
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
 #endif /* CONTROLS_MENU_H */

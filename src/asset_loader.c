@@ -277,7 +277,7 @@ int16_t AssetCacheLoadFromAssetSys(const uint8_t *name)
     /* Query file size */
     result = CAssetSys_DispatchGetSize(ASSET_OP_5_THEN_MAYBE_6, 0, (void *)name, (void *)0, &fileSize);
     if (result != 0) {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         SWOS_DBG("[cacheload] %s: size-query failed r=%d\n", (const char *)name, result);
 #endif
         return (int16_t)0xFF;
@@ -286,7 +286,7 @@ int16_t AssetCacheLoadFromAssetSys(const uint8_t *name)
     /* Allocate cache node */
     node = assetCacheAllocInternal(fileSize);
     if (node == (uint8_t *)0) {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         SWOS_DBG("[cacheload] %s: alloc failed for %u bytes\n", (const char *)name, fileSize);
 #endif
         return 1;
@@ -296,7 +296,7 @@ int16_t AssetCacheLoadFromAssetSys(const uint8_t *name)
     payload = node + CACHE_NODE_HEADER_SIZE;
     result = CAssetSys_Dispatch(ASSET_OP_INIT_SOURCE0, 0, (void *)name, payload);
     if (result != 0) {
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
         SWOS_DBG("[cacheload] %s: load failed r=%d\n", (const char *)name, result);
 #endif
         return (int16_t)0xFF;
@@ -439,7 +439,7 @@ void AssetLoaderInitAltPathAndBanks(void)
     }
 }
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* A "sound/..." name while no Amiga music or effects are installed (main.c). */
 static int isMissingAmigaSound(const uint8_t *name)
 {
@@ -501,7 +501,7 @@ void AssetPrecacheOneCore(const uint8_t *assetName)
     int32_t result;
     int16_t status;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* No Amiga music or effects installed (main.c): nothing to cache. */
     if (isMissingAmigaSound(assetName))
         return;
@@ -554,7 +554,7 @@ void AssetPrecacheOneMenu(const uint8_t *assetName)
     int32_t result;
     int16_t status;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* No Amiga music or effects installed (main.c): nothing to cache. */
     if (isMissingAmigaSound(assetName))
         return;

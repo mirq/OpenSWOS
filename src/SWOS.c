@@ -256,7 +256,7 @@ void mainC(void)
 
     /* ---- Phase 4: Loader intro ---- */
     _loaderModeFlag = 1;
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     /* Arcade: no intro/credits — boot straight to attract (asset loading below
      * still runs; only the visible intro animation is skipped). */
     {
@@ -282,7 +282,7 @@ void mainC(void)
     _loaderModeFlag = 0;
 
     /* ---- Phase 5: Show title screens (skipped in arcade mode) ---- */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     { extern int _gArcadeMode; if (_gArcadeMode) goto skip_title_screens; }
     /* No Amiga disk screens installed (main.c). */
     { extern int _gNoAmigaScreens; if (_gNoAmigaScreens) goto skip_title_screens; }
@@ -296,7 +296,7 @@ void mainC(void)
     LoadOverlayToFrontbuffer((const uint8_t *)GRAFS "disk22.raw");
     _paletteIndex = 0;
     FadeIn();
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 skip_title_screens: ;
 #endif
 
@@ -354,7 +354,7 @@ skip_title_screens: ;
     _hilNumGoals = 0;
 
     /* ---- Phase 9: Enter front-end loop (or arcade attract loop) ---- */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
     {
         extern int  NetplayLiveTest_Armed(void);
         extern void NetplayLiveTest_Run(void);

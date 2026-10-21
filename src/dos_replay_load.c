@@ -24,7 +24,7 @@
 #include "endian_helpers.h"
 #include <string.h>
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include <stdio.h>          /* fprintf(stderr, …) → SWOS.log: log each reel's gameStyle→fps */
 
@@ -307,4 +307,4 @@ void DosReplay_ClearRpl(void)
     _dosHilSceneBytes = 0;
 }
 
-#endif /* SWOS_SDL_BUILD */
+#endif /* SWOS_CHUNKY_BUILD */
