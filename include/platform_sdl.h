@@ -1,14 +1,22 @@
 /*
- * platform_sdl.h -- SDL host services exposed to the ported Amiga code.
+ * platform_sdl.h -- host services exposed to the ported Amiga code.
  *
  * Pure-C interface (no C++). Anything that used to talk to the Amiga
  * custom chips, CIA, DOS library, or AmigaOS goes through this header.
+ *
+ * Named for SDL, but it is the chunky target's platform API: the SDL build
+ * implements it in platform_sdl.c, WarpOS in platform_wos.c. So nothing
+ * declared here may use an SDL type, and <SDL.h> comes along only on the SDL
+ * build -- a file that calls SDL must say so and gate on SWOS_SDL_BUILD.
  */
 
 #ifndef PLATFORM_SDL_H
 #define PLATFORM_SDL_H
 
+#ifdef SWOS_SDL_BUILD
 #include <SDL.h>
+#endif
+#include "swos_types.h"
 
 /* Native SWOS resolution. Matches display.h. */
 #define PLATFORM_SCREEN_W 336
@@ -245,9 +253,19 @@ void Platform_RequestQuit(void);
  * struct itself, so we don't redeclare them here -- platform_amiga_stubs.c
  * provides the storage and pointer. */
 
+/* ---- The frame (src/platform_frame.c, shared by every backend) ------ */
+/* The finished 8bpp frame to show: _screen_width x _screen_height, rows
+ * FRONTBUFFER_ROW_STRIDE_BYTES apart. */
+const uint8_t *Platform_FrameToShow(void);
+/* Its colours, 256 RGB triples, updated in place: entries this frame's palette
+ * does not set keep the values they had. */
+void Platform_FramePalette(uint8_t *rgb768);
+/* The rate the game is paced at: 50 Amiga, 70 DOS, a loaded replay's own. */
+int  Platform_ActivePacingFps(void);
+
 /* ---- Misc helpers -------------------------------------------------- */
 /* Returns the host's high-resolution monotonic millisecond counter. */
-Uint64 Platform_NowMs(void);
+uint64_t Platform_NowMs(void);
 
 /* Ask the OS for a 1 ms sleep granularity (src/platform_timer.c). Only Windows
  * needs it; call it before anything sleeps. Returns 0 if the request failed. */

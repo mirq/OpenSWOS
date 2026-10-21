@@ -791,4 +791,4 @@ int32_t NetplayLiveTest_StateDiff(const char *spec) { (void)spec; return 1; }
 int32_t NetplayLiveTest_StreamDiff(const char *spec) { (void)spec; return 1; }
 
 #endif /* SWOS_NETPLAY */
-#endif /* SWOS_CHUNKY_BUILD */
+#endif /* SWOS_SDL_BUILD */

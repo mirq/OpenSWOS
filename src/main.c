@@ -2,21 +2,32 @@
  * main.c -- process entry point for BOTH targets of the united SWOS port.
  *
  * The two hosts share no startup code at all, so the file is split on
- * SWOS_SDL_BUILD (defined by include/swos_platform.h, which the SDL build
+ * SWOS_CHUNKY_BUILD (defined by include/swos_platform.h, which the SDL build
  * force-includes via -include; the m68k build never defines it):
  *
- *   SWOS_SDL_BUILD  -> the SDL2 host: init video/audio/events/gamepad, create
- *                      the window + paletted texture, then call the ported
- *                      Amiga _start / mainC bootstrap.
+ *   SWOS_CHUNKY_BUILD -> the hosted chunky target: options, SWOS.ini, the
+ *                      command line, then Platform_Init (the window and paletted
+ *                      texture under SDL, the RTG screen under WarpOS) and the
+ *                      ported Amiga _start / mainC bootstrap. The few SDL calls
+ *                      (SDL_Init, the desktop's size) are gated on SWOS_SDL_BUILD.
  *   else            -> the Amiga host: the -nostdlib libc stubs the m68k
  *                      build needs, then startShim() into the original
  *                      assembly bootstrap.
  */
 
+#ifdef SWOS_CHUNKY_BUILD
+
+
 #ifdef SWOS_SDL_BUILD
-
-
 #include <SDL.h>
+/* The two SDL calls main() makes from several places. Without SDL (WarpOS) there
+ * is no library to shut down, and the C library's setenv does the same job. */
+#define HOST_QUIT()             SDL_Quit()
+#define HOST_SETENV(k, v, o)    SDL_setenv((k), (v), (o))
+#else
+#define HOST_QUIT()             ((void)0)
+#define HOST_SETENV(k, v, o)    setenv((k), (v), (o))
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,6 +84,15 @@ static void chdir_to_binary(const char *argv0)
     char path[4096];
     char *dir;
     int got_path = 0;
+
+#ifdef SWOS_WARPOS_BUILD
+    /* AmigaOS names the program's own drawer PROGDIR:, however it was started
+     * (Shell, Workbench icon, a path with or without a volume). */
+    (void)argv0; (void)path; (void)dir; (void)got_path;
+    if (chdir("PROGDIR:") != 0)
+        fprintf(stderr, "warning: chdir(PROGDIR:) failed\n");
+    return;
+#endif
 
 #ifdef _WIN32
     /* Windows: GetModuleFileNameA(NULL, ...) returns the running .exe path. */
@@ -896,7 +916,7 @@ int main(int argc, char **argv)
          * thread writing game memory behind the game loop's back (docs/ROLLBACK.md).
          * Nor does a netplay match, which re-simulates frames. */
         if (Rollback_Enabled() || NetplayMatch_Enabled())
-            SDL_setenv("SWOS_AUDIO_OFF", "1", 1);
+            HOST_SETENV("SWOS_AUDIO_OFF", "1", 1);
         if (!Rollback_Enabled())
         opts.dos_gameplay = 1;   /* the corpus is DOS gameplay (docs/TESTS.md 5c) */
         /* The recordings were made against a reference implementation of the
@@ -994,7 +1014,7 @@ int main(int argc, char **argv)
         if (!getenv("SDL_VIDEODRIVER")) setenv("SDL_VIDEODRIVER", "dummy", 1);
         if (!getenv("SDL_AUDIODRIVER")) setenv("SDL_AUDIODRIVER", "dummy", 1);
 #endif
-        SDL_setenv("SWOS_AUDIO_OFF", "1", 1);
+        HOST_SETENV("SWOS_AUDIO_OFF", "1", 1);
     }
 
     /* Whole-match recording (src/replay_v2.c). */
@@ -1164,6 +1184,7 @@ int main(int argc, char **argv)
     if (_gDosGraphics)
         fprintf(stderr, "[dos] DOS graphics mode ON (bin/%s)\n", _gDosGraphicsDir);
 
+#ifdef SWOS_SDL_BUILD
     SDL_SetMainReady();
 
     /* Become per-monitor DPI-aware on Windows BEFORE SDL_Init (Windows reads the
@@ -1185,6 +1206,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         return 1;
     }
+#endif
 
     /* (swos_save_dir_init() now runs earlier, before Settings_Load — see above.) */
 
@@ -1199,7 +1221,11 @@ int main(int argc, char **argv)
          * Platform_Init to place + size the window, so the aspect always matches
          * the monitor the window opens on (fixes "sized from monitor 0, dropped
          * on a different screen, overflows it" on multi-monitor rigs). */
+#ifdef SWOS_SDL_BUILD
         int nd = SDL_GetNumVideoDisplays();
+#else
+        int nd = 1;     /* one screen: the one the game opens (platform_wos.c) */
+#endif
         if (nd < 1) nd = 1;
         if (opts.screen < 0 || opts.screen >= nd) opts.screen = 0;
 
@@ -1242,9 +1268,15 @@ int main(int argc, char **argv)
              * mode, but DON'T store it back into opts — leaving res_w/res_h at 0
              * keeps the file's "resolution=auto" intact when Settings_Save runs
              * (otherwise 'auto' would be rewritten as the resolved WxH). */
+#ifdef SWOS_SDL_BUILD
             SDL_DisplayMode dm;
             dw = 16; dh = 9;   /* 16:9 fallback if the query fails */
             if (SDL_GetDesktopDisplayMode(opts.screen, &dm) == 0 && dm.h > 0) { dw = dm.w; dh = dm.h; }
+#else
+            /* No desktop to fill: the game opens a screen of its own, at the
+             * Amiga's shape (platform_wos.c). */
+            dw = 4; dh = 3;
+#endif
         }
         /* The DOS view is 200 lines, so its widescreen width is 200 * the display
          * shape -- about 356 on 16:9 -- not 272 * it. Same rule as the Amiga view,
@@ -1342,13 +1374,13 @@ int main(int argc, char **argv)
      * bad path or a stale .swr fails immediately, not after the intro. */
     if (replay_file &&
         ReplayTest_Load(replay_file, replay_level, replay_max_errors, replay_skip) != 0) {
-        SDL_Quit();
+        HOST_QUIT();
         return 1;
     }
 
     if (Platform_Init(&opts) != 0) {
         fprintf(stderr, "Platform_Init failed\n");
-        SDL_Quit();
+        HOST_QUIT();
         return 1;
     }
 
@@ -1370,11 +1402,11 @@ int main(int argc, char **argv)
 
     MatchReport_Flush(5000);        /* a match report still on its way to the server */
     Platform_Shutdown();
-    SDL_Quit();
+    HOST_QUIT();
     return 0;
 }
 
-#else /* !SWOS_SDL_BUILD -- Amiga m68k host */
+#else /* !SWOS_CHUNKY_BUILD -- Amiga m68k host */
 
 /*
  * Amiga SWOS RE Project

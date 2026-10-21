@@ -34,7 +34,7 @@
  * Everything the rig keeps between frames is on the heap: oracle and discover restore
  * the executable's data wholesale, and must not rewind the rig along with the game.
  */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "rollback_rig.h"
 #include "sim_state.h"
@@ -44,7 +44,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <SDL.h>
 
 #ifdef __linux__
 #include <elf.h>

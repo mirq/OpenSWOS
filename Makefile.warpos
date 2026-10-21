@@ -1,0 +1,117 @@
+# OpenSWOS for WarpOS (PowerPC) on a Picasso96 RTG screen -- docs/WARPOS.md.
+#
+#   make -f Makefile.warpos -j$(nproc)      -> bin/SWOS.warpelf
+#
+# The chunky target without SDL: include/swos_platform.h gives it
+# SWOS_CHUNKY_BUILD and not SWOS_SDL_BUILD. Built by ppc-amigaos-gcc (adtools
+# 8.4) with the MOS2WOS WarpOS overlay, through the MiniGL SDK's common file,
+# which holds the toolchain paths and the ET_REL contract: the product is a
+# relocatable ELF that Elf2Exe2 converts ON THE AMIGA into a WarpOS executable.
+# No MiniGL is linked.
+
+MGL_DIR ?= /home/mirek/MiniGL_WOS_V19_mglQ3
+# The oldest WarpOS boards (Blizzard/CyberStorm PPC) are 603e/604e: code for a
+# 603e runs on every one of them.
+CPU     ?= 603e
+include $(MGL_DIR)/Makefile.wos.gcc.common
+
+SHELL := /bin/bash
+
+OBJDIR := build/warpos/ppc
+TARGET := bin/SWOS.warpelf
+
+BUILD_STAMP_UNUSED := $(shell sh scripts/gen_build_info.sh)
+
+# Sources the chunky target without SDL does not build: the SDL backends
+# (replaced by the *_wos.c files), and everything online, which WarpOS does not
+# play. Fail loudly when a name stops existing, as Makefile.amiga does.
+WOS_EXCLUDE_SRCS := \
+    platform_sdl.c        \
+    input_sdl.c           \
+    audio_sdl.c           \
+    crt_effects.c         \
+    mm_client.c           \
+    netem_core.c          \
+    netplay.c             \
+    netplay_live_test.c   \
+    netplay_lobby.c       \
+    netplay_match.c       \
+    netplay_ghost.c       \
+    netplay_netem.c       \
+    online_menus.c        \
+    p2p_link.c            \
+    p2p_menu.c            \
+    match_record.c        \
+    match_report.c
+
+$(foreach f,$(WOS_EXCLUDE_SRCS),$(if $(wildcard src/$(f)),,$(error WOS_EXCLUDE_SRCS lists src/$(f), which does not exist -- update Makefile.warpos)))
+
+SOURCES := $(filter-out $(addprefix src/,$(WOS_EXCLUDE_SRCS)),$(wildcard src/*.c))
+OBJECTS := $(patsubst src/%.c,$(OBJDIR)/%.o,$(SOURCES))
+DEPS    := $(OBJECTS:.o=.d)
+
+DATA_FLAGS := -DCOMPETITION_DATA_C=1 -DTACTICS_DATA_C=1 -DFIXTURE_DATA_C=1 \
+              -DSIMULATION_DATA_C=1 -DPLAYER_DATA_C=1 -DRENDER_DATA_C=1 \
+              -DPALETTE_DATA_C=1 -DSTRINGS_DATA_C=1 -DGENERAL_DATA_C=1
+
+# The MOS2WOS overlay ships SDL 1.2 and puts its headers on the include path:
+# take them off, or <SDL.h> quietly resolves to them and an SDL call that should
+# have been ported compiles against the wrong library.
+WOS_CPPFLAGS_NOSDL := $(subst -isystem $(WOS_SDK_ROOT)/include/sdl,,$(WOS_CPPFLAGS))
+
+SWOS_TEST_RULES ?= 1
+ifeq ($(SWOS_TEST_RULES),1)
+GAME_FLAGS += -DSWOS_TEST_RULES=1
+endif
+GAME_FLAGS += -DSWOS_SAVE_FORMAT_JSON=1
+
+# -fsigned-char: char is UNSIGNED on PPC and signed on m68k and x86; the game
+#   was written for a signed one.
+# -fno-common: the ET_REL check refuses COMMON symbols (GCC 8 defaults to them).
+# -msdata=none -G0: no small-data relocations, which Elf2Exe2 cannot translate.
+# -Uamiga -Uamigaos: the compiler predefines these outside the reserved
+#   namespace, and the game has variables called `amiga`.
+CFLAGS := -std=gnu11 $(WOS_ARCH_CFLAGS) -O2 -g -fno-strict-aliasing -fno-builtin \
+          -fsigned-char -fno-common -msdata=none -G0 \
+          -MMD -MP -DSWOS_WARPOS_BUILD=1 $(GAME_FLAGS) $(DATA_FLAGS) \
+          -Wall -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable \
+          -Wno-attributes -Wno-multichar -Wno-builtin-declaration-mismatch \
+          -Wno-pointer-sign -Wno-int-conversion -Wno-incompatible-pointer-types \
+          -Wno-braces -Wno-address-of-packed-member \
+          -Wno-strict-aliasing -Wno-array-bounds -Wno-stringop-overflow \
+          $(WOS_CPPFLAGS_NOSDL) -Uamiga -Uamigaos -Iinclude -Isrc -include include/swos_platform.h \
+          $(EXTRA_CFLAGS)
+
+# A changed flag rebuilds every object (the SDL Makefile's BUILD_FLAGS_STAMP says why).
+BUILD_FLAGS_STAMP := $(OBJDIR)/.build-flags
+$(shell mkdir -p $(OBJDIR); f='$(CFLAGS)'; [ "$$(cat $(BUILD_FLAGS_STAMP) 2>/dev/null)" = "$$f" ] || printf '%s' "$$f" > $(BUILD_FLAGS_STAMP))
+
+.PHONY: all objects clean
+all: $(TARGET)
+objects: $(OBJECTS)
+
+$(OBJDIR)/%.o: src/%.c $(BUILD_FLAGS_STAMP)
+	@echo "  CC  $<"
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+# startupwos.o FIRST: the WarpOS loader jumps to the first text hunk, and a
+# reordered link dies before main() in a way that looks like a game bug.
+# The full link, debug info and all, is kept beside the objects for addr2line
+# against a crash address; what Elf2Exe2 gets has the debug sections dropped
+# (nothing else: never strip a hunk executable's symbols).
+DEBUG_ELF := $(OBJDIR)/SWOS.debug.elf
+
+$(DEBUG_ELF): $(OBJECTS)
+	@echo "  LD  $@"
+	@$(LD) $(WOS_LINK_FLAGS) $(WOS_LIBRARY_DIRS) -o $@ \
+		$(WOS_STARTFILE) $(OBJECTS) $(WOS_RUNTIME_LIBS) $(WOS_ENDFILE)
+
+$(TARGET): $(DEBUG_ELF)
+	@$(WOS_CROSS)objcopy --strip-debug $< $@
+	$(call WOS_VALIDATE_ETREL,$@)
+	@echo "  OK  $@: convert it ON THE AMIGA with  Elf2Exe2 SWOS.warpelf SWOS"
+
+clean:
+	rm -rf $(OBJDIR) $(TARGET)
+
+-include $(DEPS)

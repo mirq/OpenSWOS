@@ -15,10 +15,12 @@
  *
  * SDL-only: the Amiga build has no file for it and no use for widescreen.
  */
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 #include "replay_v2.h"
+#ifdef SWOS_SDL_BUILD
 #include <SDL.h>            /* the checkpoint's thread */
+#endif
 #include "dos_sound.h"
 #include "audio_sfx_filter.h"
 #include "build_info.h"
@@ -893,7 +895,12 @@ static int32_t write_recording(void)
  * frame took 155 ms on a 20,000-frame match: that player's game stood still for eight
  * frames while the other's ran on -- past the end of the match, when it happened there,
  * so the host's file had three frames the recorder's did not. Nothing here touches the
- * match or the recording being kept. */
+ * match or the recording being kept.
+ *
+ * Without SDL there is no thread to build it on, and no copy is made: the match is
+ * still saved at its end. (The WASM build has SDL but no threads: its
+ * SDL_CreateThread fails, which comes to the same.) */
+#ifdef SWOS_SDL_BUILD
 typedef struct {
     SrpContent    c;
     SrpPrediction own;
@@ -1032,6 +1039,10 @@ void ReplayRec_Checkpoint(void)
     if (!s_ckptThread)
         ckpt_free(k);
 }
+#else
+static void ckpt_join(void) { }
+void ReplayRec_Checkpoint(void) { }
+#endif
 
 void ReplayRec_MatchEnd(void)
 {

@@ -6,9 +6,13 @@
 #include "fade.h"
 #include "display.h"
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 #include "platform_sdl.h"
+#ifdef SWOS_SDL_BUILD
 #include <SDL.h>
+#else
+#include <unistd.h>             /* usleep */
+#endif
 #ifdef SWOS_WASM_BUILD
 #include <emscripten.h>
 #endif
@@ -20,7 +24,7 @@
  * (the copper expects atomic word reads). Force a real move.w instruction
  * via inline asm. On the SDL host the copper list is a regular RAM buffer
  * so a plain store is fine. */
-#if defined(__m68k__) || defined(__amigaos__) || defined(__amigaos4__)
+#if defined(__m68k__)
 #define COPPER_WRITE_W(addr, val) \
     __asm__ volatile ("move.w %0,(%1)" : : "d"((uint16_t)(val)), "a"((volatile uint16_t *)(addr)) : "memory")
 #else
@@ -31,7 +35,7 @@ typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;
 typedef short int16_t;
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 /* Helper: yield CPU briefly while driving the Amiga Level-3 ISR. The
  * fade-in / fade-out spin loops below wait for fadeState to flip,
  * which is updated by FadeInTick / FadeOutTick inside the ISR. On
@@ -43,8 +47,10 @@ static inline void fade_wait_one_isr_tick(void)
     RunInt3HandlerThrottled();
 #ifdef SWOS_WASM_BUILD
     emscripten_sleep(2);   /* yield to the browser (ASYNCIFY); SDL_Delay would freeze the tab */
-#else
+#elif defined(SWOS_SDL_BUILD)
     SDL_Delay(2);
+#else
+    usleep(2000);
 #endif
 }
 #define FADE_SPIN_BODY() fade_wait_one_isr_tick()

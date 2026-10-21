@@ -1194,4 +1194,4 @@ void               NetplayLobby_RestoreTactics(void) {}
 int32_t            NetplayLobby_ApplyMatch(void) { return 1; }
 
 #endif /* SWOS_NETPLAY */
-#endif /* SWOS_CHUNKY_BUILD */
+#endif /* SWOS_SDL_BUILD */

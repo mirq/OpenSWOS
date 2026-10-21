@@ -9,12 +9,26 @@
 #ifndef SWOS_PLATFORM_H
 #define SWOS_PLATFORM_H
 
+/* WarpOS (PowerPC, RTG screen; docs/WARPOS.md). Makefile.warpos passes
+ * -DSWOS_WARPOS_BUILD=1; WARPUP + __PPC__ is what its MOS2WOS flags define, so
+ * a file compiled outside the makefile still agrees.
+ *
+ * The m68k hardware build is recognised by __m68k__ ALONE, here and in every
+ * file that asks: that is the only one of these its compiler defines, and the
+ * ppc-amigaos compiler defines __amigaos__ / __AMIGA__ too. Until 2026-10-21
+ * the tests read `__m68k__ || __amigaos__ || __amigaos4__`, which would have
+ * taken WarpOS for the m68k build. */
+#if defined(SWOS_WARPOS_BUILD) || (defined(WARPUP) && defined(__PPC__))
+#undef  SWOS_WARPOS_BUILD
+#define SWOS_WARPOS_BUILD 1
+#endif
+
 /* When the Amiga m68k toolchain compiles a file that pulls this
  * header in transitively (one of the synced data files does), give
  * it an empty translation unit — the SDL_BUILD-only defines below
  * must NOT be visible on Amiga. The SDL build still injects this
  * header via -include in CFLAGS as before. */
-#if defined(__m68k__) || defined(__amigaos__) || defined(__amigaos4__)
+#if defined(__m68k__)
 /* Amiga build: no platform shim needed. The Amiga m68k-elf toolchain
  * doesn't prefix symbols (ELF on m68k uses bare names), so _ASM_PFX
  * expands to an empty string. The synced data files (swos_globals.c
@@ -35,9 +49,11 @@
  *                      timers, threads and controllers. Only code that CALLS SDL
  *                      gates on it.
  *
- * The m68k hardware build defines neither. Until 2026-10-21 there was only
- * SWOS_SDL_BUILD, meaning both. */
+ * The m68k hardware build defines neither, WarpOS only the first. Until
+ * 2026-10-21 there was only SWOS_SDL_BUILD, meaning both. */
+#ifndef SWOS_WARPOS_BUILD
 #define SWOS_SDL_BUILD 1
+#endif
 #define SWOS_CHUNKY_BUILD 1
 
 /* WebAssembly/Emscripten target (a flavour of the SDL build). WASM-specific
@@ -137,8 +153,11 @@ typedef __UINTPTR_TYPE__ uintptr_t;
 
 /* The Amiga code's FixedPoint union is { int16_t i; uint16_t frac } which
  * works on big-endian. On little-endian we need to swap the order so that
- * a raw int32_t value of 0x00010000 still maps to i=1, frac=0. */
+ * a raw int32_t value of 0x00010000 still maps to i=1, frac=0. A big-endian
+ * host (WarpOS PPC) keeps the Amiga's order. */
+#if !(defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
 #define AMIGA_FIXEDPOINT_LE 1
+#endif
 
 /* ---- Chip-register base redirect -----------------------------------
  * The Amiga code pokes `*(volatile uint16_t *)(CUSTOM_BASE + OFFSET) = x;`

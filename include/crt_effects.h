@@ -54,5 +54,5 @@ void CrtEffects_Apply(SDL_Renderer *renderer);
 /* Drop the cached texture (renderer teardown). */
 void CrtEffects_Shutdown(void);
 
-#endif /* SWOS_CHUNKY_BUILD */
+#endif /* SWOS_SDL_BUILD */
 #endif /* SWOS_CRT_EFFECTS_H */

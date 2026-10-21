@@ -10,6 +10,7 @@ original `SWOS2.s`. **One** source tree builds **both** targets:
 | SDL (Linux/Windows/macOS/WASM/ARM) | `make` | `bin/SWOS*` | the day-to-day dev target |
 | Amiga m68k (A1200/AGA) | `make -f Makefile.amiga` | `bin/SWOS2` | runs under FS-UAE/WinUAE or real hardware |
 | Nintendo Switch (NX-NXFP2-a64) | `scripts/build_switch.sh` | `bin/SWOS.nss` | a flavour of the SDL build; needs the NDA SDK + SDL fork, neither in this tree. **Not yet linked or run** — see `docs/SWITCH.md` |
+| WarpOS PowerPC + Picasso96 RTG | `make -f Makefile.warpos` | `bin/SWOS.warpelf` (Elf2Exe2 it on the Amiga) | the chunky target WITHOUT SDL (`SWOS_CHUNKY_BUILD`, no `SWOS_SDL_BUILD`), offline only, sound silent so far. **Links, never run** — see `docs/WARPOS.md` |
 
 `src/` and `include/` are **shared**. Platform divergence is expressed with two
 macros, both defined by `include/swos_platform.h` (which the SDL build

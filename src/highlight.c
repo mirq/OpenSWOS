@@ -931,7 +931,7 @@ end_replay:
     _replayState = 0;
     return;
 
-after_decode:
+after_decode: ;   /* a declaration follows: GCC 8 (WarpOS) wants a statement after a label */
     /* loc_10C4E2: overlay drawing */
 
     /* The overlay's coordinates are each release's own, against its own screen:

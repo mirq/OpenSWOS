@@ -887,4 +887,4 @@ int32_t DosSound_SelfTest(void)
     return failures;
 }
 
-#endif /* SWOS_CHUNKY_BUILD */
+#endif /* SWOS_SDL_BUILD */

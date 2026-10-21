@@ -24,7 +24,7 @@
  * not real hardware, and the writes are no-ops anyway). We already use
  * this pattern in display.c for copper writes (`copper_write_word` /
  * `copper_write_ptr`) — see those for context. */
-#if defined(__m68k__) || defined(__amigaos__) || defined(__amigaos4__)
+#if defined(__m68k__)
 #define BLT_W(reg, val)                                                     \
     do {                                                                    \
         uint16_t _v = (uint16_t)(val);                                      \

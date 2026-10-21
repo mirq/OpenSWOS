@@ -268,4 +268,4 @@ void ControlsMenu_Show(void)
     ShowMenu(menu);
 }
 
-#endif /* SWOS_CHUNKY_BUILD */
+#endif /* SWOS_SDL_BUILD */

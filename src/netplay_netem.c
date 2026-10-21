@@ -182,4 +182,4 @@ int  Netem_LinkSend(int sock, const char *buf, int len, int flags,
 void Netem_LinkPump(int sock) { (void)sock; }
 
 #endif /* SWOS_NETPLAY */
-#endif /* SWOS_CHUNKY_BUILD */
+#endif /* SWOS_SDL_BUILD */

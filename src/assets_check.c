@@ -19,7 +19,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#ifdef SWOS_SDL_BUILD
 #include <SDL.h>
+#endif
 
 #include "assets_check.h"
 #include "assets_ini.h"
@@ -113,7 +115,8 @@ static void version_signature(char *out, uint32_t cap)
 
 void AssetsCheck_Run(PlatformInitOptions *opts, const char *iniPath)
 {
-#if defined(SWOS_WASM_BUILD) || defined(SWOS_SWITCH_BUILD)
+#if defined(SWOS_WASM_BUILD) || defined(SWOS_SWITCH_BUILD) || !defined(SWOS_SDL_BUILD)
+    /* WarpOS too, until platform_wos.c has a requester to ask with. */
     (void)opts; (void)iniPath;
 #else
     const char *driver = SDL_GetCurrentVideoDriver();

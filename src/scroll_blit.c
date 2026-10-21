@@ -27,7 +27,7 @@
  * macros wrap each write in inline `move.w` / `move.l` asm so the
  * single-instruction store is guaranteed on m68k. Defined in blitter.c
  * too — kept local here to avoid an extra header just for these.  */
-#if defined(__m68k__) || defined(__amigaos__) || defined(__amigaos4__)
+#if defined(__m68k__)
 #define BLT_W(reg, val)                                                     \
     do {                                                                    \
         uint16_t _v = (uint16_t)(val);                                      \

@@ -15,7 +15,7 @@
  * the decomposed write triggers the blit mid-update with a half-formed
  * size — fill/copy operations either do nothing or write garbage.
  * Same macros as in blitter.c / sprites.c / scroll_blit.c.  */
-#if defined(__m68k__) || defined(__amigaos__) || defined(__amigaos4__)
+#if defined(__m68k__)
 #define BLT_W(reg, val)                                                     \
     do {                                                                    \
         uint16_t _v = (uint16_t)(val);                                      \
@@ -125,7 +125,7 @@ static void copper_write_ptr(uint8_t *entry, uint32_t ptr)
 {
     uint16_t hi = (uint16_t)(ptr >> 16);
     uint16_t lo = (uint16_t)(ptr);
-#if defined(__m68k__) || defined(__amigaos__) || defined(__amigaos4__)
+#if defined(__m68k__)
     /* Amiga: force real move.w instructions — GCC's volatile uint16_t store
      * can decompose into byte-level move.b pairs which corrupt the live
      * copper list. */
@@ -142,7 +142,7 @@ static void copper_write_ptr(uint8_t *entry, uint32_t ptr)
  * Forces a move.w instruction on Amiga; plain store on SDL host. */
 static void copper_write_word(uint8_t *addr, uint16_t val)
 {
-#if defined(__m68k__) || defined(__amigaos__) || defined(__amigaos4__)
+#if defined(__m68k__)
     __asm__ volatile ("move.w %0,(%1)" : : "d"(val), "a"(addr) : "memory");
 #else
     *(volatile uint16_t *)addr = val;

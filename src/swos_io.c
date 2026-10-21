@@ -24,7 +24,7 @@
  * tiny implementations here. SDL builds use the host libc so these
  * are skipped.
  * ============================================================ */
-#if defined(__m68k__) || defined(__amigaos__) || defined(__amigaos4__)
+#if defined(__m68k__)
 
 size_t strlen(const char *s) {
     const char *p = s;
@@ -151,7 +151,7 @@ void swos_io_free(void *p)
  * Whole-file load/save.
  * ============================================================ */
 
-#ifdef SWOS_SDL_BUILD
+#ifdef SWOS_CHUNKY_BUILD
 
 /* ---- Save directory -------------------------------------------------------
  * Every save file (careers .CAR/.SEA/.PRE/.DIY, tactics .TAC, highlights .HIL,
@@ -167,6 +167,7 @@ void swos_io_free(void *p)
  *   macOS:   ~/Library/Application Support/SWOS/save
  *   Linux:   ~/.swos/save
  *   WASM:    "save" (→ the IndexedDB-backed /save mount from wasm/pre.js)
+ *   WarpOS:  "save", beside the program (as the Amiga drawer has it)
  * If the location can't be determined or created, we fall back to the relative
  * "save" default so a dev/CLI run still works from the game dir. */
 static char s_save_dir[1024] = "save";
@@ -298,6 +299,15 @@ void swos_save_dir_init(void)
      * on WASM), i.e. into /save — so the "save" default is already correct, and
      * s_user_dir stays "." so SWOS.ini resolves to /SWOS.ini (where wasm/pre.js
      * copies it from localStorage). */
+    return;
+#elif defined(SWOS_WARPOS_BUILD)
+    /* WarpOS: the game's own drawer is the game folder, as on the m68k Amiga --
+     * main() has made it the current directory, so SWOS.ini and save/ sit beside
+     * the program and the "." / "save" defaults are already right. A drawer
+     * copied without its empty save/ still gets one. */
+    if (swos_make_dirs("save") != 0)
+        fprintf(stderr, "[settings] cannot create save: %s -- saving will fail\n",
+                strerror(errno));
     return;
 #else
     /* user = the per-user game folder (holds SWOS.ini); save = user + "/save".

@@ -23,7 +23,7 @@
  * emitter (mjson_print_dbl) and its isinf/isnan helpers are stubbed
  * out below. Save files only contain integers, so this never bites
  * the production code path. */
-#if !defined(__m68k__) && !defined(__amigaos__) && !defined(__amigaos4__)
+#if !defined(__m68k__)
 #include <float.h>
 #include <math.h>
 #define SWOS_MJSON_HAVE_DOUBLES 1
@@ -38,7 +38,7 @@
  * match the real size_t parameter and triggers builtin-mismatch
  * warnings (or errors with -Werror). Declare them explicitly here
  * so both ports see the same prototypes. */
-#if defined(__m68k__) || defined(__amigaos__) || defined(__amigaos4__)
+#if defined(__m68k__)
 extern size_t strlen(const char *s);
 extern int    memcmp(const void *a, const void *b, size_t n);
 extern int    strncmp(const char *a, const char *b, size_t n);
@@ -207,7 +207,7 @@ struct msjon_get_data {
 
 /* Only mjson's #if 0 debug printf blocks use stdio. Amiga m68k toolchain
  * doesn't ship <stdio.h>, so guard the include. */
-#if !defined(__m68k__) && !defined(__amigaos__) && !defined(__amigaos4__)
+#if !defined(__m68k__)
 #include <stdio.h>
 #endif
 

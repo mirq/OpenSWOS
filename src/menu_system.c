@@ -48,7 +48,7 @@ extern volatile uint16_t _seasonUpdateInProgress;
  * the decomposed write triggers the blit mid-update with a half-formed
  * size — fill/copy operations either do nothing or write garbage.
  * Same macros as in blitter.c / sprites.c / scroll_blit.c.  */
-#if defined(__m68k__) || defined(__amigaos__) || defined(__amigaos4__)
+#if defined(__m68k__)
 #define BLT_W(reg, val)                                                     \
     do {                                                                    \
         uint16_t _v = (uint16_t)(val);                                      \
@@ -1769,7 +1769,7 @@ void MenuProc(void)
     CallMenuOnSelect((void *)onSelectPtr, (void *)selectedEntry);
     SWOS_AUTOSKIP_LOG("MenuProc: <- CallMenuOnSelect (exitMenu after=%u)", (unsigned)_exitMenu);
 
-no_event_or_done:
+no_event_or_done: ;   /* a declaration follows: GCC 8 (WarpOS) wants a statement after a label */
 #ifdef SWOS_CHUNKY_BUILD
     /* Menu navigation log: every direction the menu sees, what it walked through and
      * where the cursor ended up -- for a cursor that will not move on one machine

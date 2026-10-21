@@ -601,4 +601,4 @@ void MatchRecord_End(int32_t finished, int32_t endFrame, uint64_t finalSimHash, 
 }
 
 #endif /* SWOS_NETPLAY */
-#endif /* SWOS_CHUNKY_BUILD */
+#endif /* SWOS_SDL_BUILD */
