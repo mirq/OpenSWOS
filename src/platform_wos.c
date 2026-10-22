@@ -111,7 +111,8 @@ static struct ScreenBuffer *s_sb[2];
 static int                  s_no_safe_msgs;     /* no SafeMessage: none is waited for */
 static uint64_t             s_disp_period_us;   /* the display's refresh, from timed flips */
 static uint64_t             s_flip_cost_us;     /* the cheapest flip off the vertical blank */
-static uint64_t             s_vblank_us;        /* a moment a flip returned: a vertical blank */
+static uint64_t             s_vblank_us;        /* a vertical blank, from the fitted flips */
+static double               s_disp_period_frac; /* the refresh in us, with its fraction */
 static int                  s_flipped;          /* this frame went up with a flip */
 static int                  s_locked;           /* the last frame was paced by its flip */
 static struct MsgPort      *s_safe_port;
@@ -913,8 +914,17 @@ static void dbuf_open(void)
      * timer paces and one buffer is drawn while on screen -- the flip and the timer
      * waiting one after the other halved the frame rate (2026-10-22). */
     {
-        enum { N = 14 };
-        uint64_t t[N], d[N - 1], x;
+        /* 100 flips, two seconds of a black screen. Each return is a vertical blank
+         * plus however long the driver took to come back, which varies by a
+         * millisecond or more: 14 flips left the period ~60 us out, and the frames
+         * drifted across the refresh -- a tear passing every few seconds
+         * (2026-10-22). A line fitted through all 100, each numbered by the
+         * refreshes since the first, puts the period within a few us and the blank
+         * at the line, not at one late return. */
+        enum { N = 100 };
+        static uint64_t t[N];
+        static int64_t  kk[N];
+        uint64_t d[N - 1], x, med;
         int j, k;
         for (i = 0; i < N; i++) {
             ChangeScreenBuffer(s_screen, s_sb[(i + 1) & 1]);
@@ -929,17 +939,36 @@ static void dbuf_open(void)
         for (j = 1; j < N - 1; j++)
             for (k = j; k > 0 && d[k] < d[k - 1]; k--)
                 x = d[k], d[k] = d[k - 1], d[k - 1] = x;
-        /* then each interval as a whole number of refreshes, for the mean */
+        med = d[(N - 1) / 2];
+        /* each flip's refresh number, then the least-squares line t = a + b*k */
+        kk[0] = 0;
+        for (j = 1; j < N; j++) {
+            int64_t r = (int64_t)((t[j] - t[j - 1] + med / 2) / med);
+            kk[j] = kk[j - 1] + (r < 1 ? 1 : r);
+        }
         {
-            uint64_t med = d[(N - 1) / 2], sum = 0, n = 0;
-            for (j = 0; j < N - 1; j++) {
-                uint64_t r = (t[j + 1] - t[j] + med / 2) / med;
-                if (r == 0)
-                    continue;
-                sum += t[j + 1] - t[j];
-                n += r;
+            double sk = 0, st = 0, skk = 0, skt = 0, b, a, n = (double)N;
+            for (j = 0; j < N; j++) {
+                double kj = (double)kk[j], tj = (double)(t[j] - t[0]);
+                sk += kj; st += tj; skk += kj * kj; skt += kj * tj;
             }
-            s_disp_period_us = n ? sum / n : med;
+            b = (n * skt - sk * st) / (n * skk - sk * sk);
+            a = (st - b * sk) / n;
+            /* The line runs through the earliest returns' side too: a return is
+             * never early, so shift it down to the soonest one -- that is nearest
+             * the blank itself. */
+            {
+                double lo = 0;
+                for (j = 0; j < N; j++) {
+                    double r = (double)(t[j] - t[0]) - (a + b * (double)kk[j]);
+                    if (j == 0 || r < lo)
+                        lo = r;
+                }
+                a += lo;
+            }
+            s_disp_period_us = (uint64_t)(b + 0.5);
+            s_disp_period_frac = b;
+            s_vblank_us = t[0] + (uint64_t)(a + b * (double)kk[N - 1]);
         }
     }
     /* What one flip costs on its own, at different points of the refresh: a flip
@@ -960,7 +989,6 @@ static void dbuf_open(void)
         }
         while (!ChangeScreenBuffer(s_screen, s_sb[0]))
             WaitTime(0, 2000);
-        s_vblank_us = now_us();
         WaitTime(0, 30000);
         s_flip_cost_us = mn;
         fprintf(stderr, "[video] screen buffers at $%08lx and $%08lx (the screen's $%08lx); "
@@ -1233,12 +1261,20 @@ static void pace(void)
             uint64_t phase = ph ? (uint64_t)strtoul(ph, NULL, 0) % period : 0;
             s_next_frame_us = s_vblank_us + phase +
                               ((now - s_vblank_us) / period) * period;
-            fprintf(stderr, "[video] frames follow the display: %lu us apart, phase %lu us "
-                            "after the vertical blank\n", (unsigned long)period,
+            fprintf(stderr, "[video] frames follow the display: %.2f us apart, phase %lu us "
+                            "after the vertical blank\n", s_disp_period_frac,
                     (unsigned long)phase);
         }
     }
     s_next_frame_us += period;
+    /* the refresh's fraction of a microsecond, carried: 0.5 us a frame is a full
+     * refresh of drift in 13 minutes */
+    if (period == s_disp_period_us && s_disp_period_frac > 0) {
+        static double s_carry;
+        s_carry += s_disp_period_frac - (double)period;
+        if (s_carry >= 1.0)       { s_next_frame_us += 1; s_carry -= 1.0; }
+        else if (s_carry <= -1.0) { s_next_frame_us -= 1; s_carry += 1.0; }
+    }
     if (s_next_frame_us > now) {
         uint64_t wait = s_next_frame_us - now;
         if (wait > period * 2)
