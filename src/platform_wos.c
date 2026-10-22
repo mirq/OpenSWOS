@@ -109,6 +109,9 @@ static int            s_win_scale = 1;
  * match all of it. */
 static struct ScreenBuffer *s_sb[2];
 static int                  s_no_safe_msgs;     /* no SafeMessage: none is waited for */
+static uint64_t             s_disp_period_us;   /* the display's refresh, from timed flips */
+static int                  s_flipped;          /* this frame went up with a flip */
+static int                  s_locked;           /* the last frame was paced by its flip */
 static struct MsgPort      *s_safe_port;
 static int                  s_dbuf;             /* 1: the two buffers are in use */
 static int                  s_back;             /* the buffer to draw into */
@@ -116,6 +119,12 @@ static int                  s_front = 0;        /* the buffer on screen */
 static int                  s_safe_pending[2];  /* flipped away, not yet safe to write */
 static uint8_t s_shadow[2][672 * 272];
 static void dbuf_open(void);
+/* The display's refresh is within 4% of `period`: its flips can pace the frames. */
+static int display_paces(uint64_t period)
+{
+    return s_disp_period_us > period - period / 25 && s_disp_period_us < period + period / 25;
+}
+static void vsync_probe(void);
 static void dbuf_close(void);
 static void wait_safe(int b);
 static uint64_t now_us(void);
@@ -394,7 +403,12 @@ void RunInt3HandlerThrottled(void)
     uint64_t now = now_us();
     int ticks = 0;
 
-    if (s_next_isr_us == 0)
+    if (s_locked) {
+        /* The frames follow the display: one tick each, so a refresh a hair off
+         * 50 Hz never shows a frame twice or skips one against the timer. */
+        ticks = 1;
+        s_next_isr_us = now + period;
+    } else if (s_next_isr_us == 0)
         s_next_isr_us = now;
     while (now >= s_next_isr_us && ticks < 2) {
         s_next_isr_us += period;
@@ -663,6 +677,8 @@ int Platform_Init(const PlatformInitOptions *opts)
     fprintf(stderr, "[wos] clearing the screen, probing the lock\n");
     SetRast(&s_screen->RastPort, 0);    /* the border is colour 0, as on the Amiga */
     probe_lock();
+    if (getenv("SWOS_VSYNC_PROBE"))
+        vsync_probe();
     dbuf_open();
 
     fprintf(stderr, "[wos] input, audio\n");
@@ -760,13 +776,74 @@ static void wait_safe(int b)
     }
 }
 
+/* SWOS_VSYNC_PROBE=1: how each way of meeting the display's vertical blank behaves
+ * on this board -- the intervals between successive returns of WaitTOF, WaitBOVP
+ * and back-to-back ChangeScreenBuffer flips. A wait that tracks the display
+ * shows ~1e6/refresh us apart with little spread. */
+static void probe_report(const char *what, uint64_t *t, int n)
+{
+    uint64_t mn = ~(uint64_t)0, mx = 0, sum = 0;
+    int i;
+    for (i = 1; i < n; i++) {
+        uint64_t d = t[i] - t[i - 1];
+        if (d < mn) mn = d;
+        if (d > mx) mx = d;
+        sum += d;
+    }
+    fprintf(stderr, "[vsync] %s: interval avg %lu us, min %lu, max %lu (%d calls)\n", what,
+            (unsigned long)(sum / (uint64_t)(n - 1)), (unsigned long)mn, (unsigned long)mx, n);
+}
+
+static void vsync_probe(void)
+{
+    enum { N = 60 };
+    static uint64_t t[N];
+    struct ScreenBuffer *a, *b;
+    int i;
+
+    for (i = 0; i < N; i++) {
+        WaitTOF();
+        t[i] = now_us();
+    }
+    probe_report("WaitTOF", t, N);
+    for (i = 0; i < N; i++) {
+        WaitBOVP(&s_screen->ViewPort);
+        t[i] = now_us();
+    }
+    probe_report("WaitBOVP", t, N);
+
+    a = AllocScreenBuffer(s_screen, NULL, SB_SCREEN_BITMAP);
+    b = AllocScreenBuffer(s_screen, NULL, SB_COPY_BITMAP);
+    if (a && b) {
+        int busy = 0;
+        a->sb_DBufInfo->dbi_SafeMessage.mn_ReplyPort = NULL;
+        a->sb_DBufInfo->dbi_DispMessage.mn_ReplyPort = NULL;
+        b->sb_DBufInfo->dbi_SafeMessage.mn_ReplyPort = NULL;
+        b->sb_DBufInfo->dbi_DispMessage.mn_ReplyPort = NULL;
+        for (i = 0; i < N; i++) {
+            if (!ChangeScreenBuffer(s_screen, (i & 1) ? a : b))
+                busy++;
+            t[i] = now_us();
+        }
+        probe_report("ChangeScreenBuffer", t, N);
+        if (busy)
+            fprintf(stderr, "[vsync] ChangeScreenBuffer refused %d of %d flips\n", busy, N);
+        /* the screen's own bitmap back on screen before they go */
+        while (!ChangeScreenBuffer(s_screen, a))
+            WaitTime(0, 2000);
+        WaitTime(0, 50000);
+    } else {
+        fprintf(stderr, "[vsync] no screen buffers\n");
+    }
+    if (b) FreeScreenBuffer(s_screen, b);
+    if (a) FreeScreenBuffer(s_screen, a);
+}
+
 static void dbuf_open(void)
 {
     int i;
-    /* Off unless SWOS_DBUF=1: on Picasso96 here (Sonnet, 2026-10-22) ChangeScreenBuffer
-     * itself blocked ~30 ms a frame in a scrolling match, half the frame rate; one
-     * buffer drawn while on screen ran a full 50 Hz. */
-    if (!getenv("SWOS_DBUF"))
+    /* SWOS_NO_DBUF=1: one buffer, drawn while it is on screen, paced by the timer. */
+    if (getenv("SWOS_NO_DBUF"))
         return;
     s_sb[0] = AllocScreenBuffer(s_screen, NULL, SB_SCREEN_BITMAP);
     s_sb[1] = AllocScreenBuffer(s_screen, NULL, SB_COPY_BITMAP);
@@ -791,11 +868,50 @@ static void dbuf_open(void)
         s_sb[i]->sb_DBufInfo->dbi_DispMessage.mn_ReplyPort = NULL;
     }
     s_no_safe_msgs = 1;
+
+    /* ChangeScreenBuffer returns at the board's vertical blank -- the only wait on
+     * the RTG display here: WaitTOF and WaitBOVP follow the native chipset
+     * (SWOS_VSYNC_PROBE, 2026-10-22). Time a run of flips between the two (blank)
+     * buffers for the refresh. When it is the game's 50 Hz the flips pace the
+     * frames: no tear, no beat against the timer. Otherwise (60, 75, 100 Hz) the
+     * timer paces and one buffer is drawn while on screen -- the flip and the timer
+     * waiting one after the other halved the frame rate (2026-10-22). */
+    {
+        enum { N = 14 };
+        uint64_t t[N], d[N - 1], x;
+        int j, k;
+        for (i = 0; i < N; i++) {
+            ChangeScreenBuffer(s_screen, s_sb[(i + 1) & 1]);
+            t[i] = now_us();
+        }
+        while (!ChangeScreenBuffer(s_screen, s_sb[0]))      /* its own bitmap again */
+            WaitTime(0, 2000);
+        WaitTime(0, 30000);
+        /* the median interval: a missed blank or a late return does not move it */
+        for (j = 0; j < N - 1; j++)
+            d[j] = t[j + 1] - t[j];
+        for (j = 1; j < N - 1; j++)
+            for (k = j; k > 0 && d[k] < d[k - 1]; k--)
+                x = d[k], d[k] = d[k - 1], d[k - 1] = x;
+        s_disp_period_us = d[(N - 1) / 2];
+    }
+    if (!getenv("SWOS_DBUF") && !display_paces(1000000u / 50u)) {
+        FreeScreenBuffer(s_screen, s_sb[1]);
+        FreeScreenBuffer(s_screen, s_sb[0]);
+        DeleteMsgPort(s_safe_port);
+        s_sb[0] = s_sb[1] = NULL;
+        s_safe_port = NULL;
+        fprintf(stderr, "[video] display refresh %lu us (%.1f Hz), not the game's 50: one "
+                        "buffer, paced by the timer (a 50 or 100 Hz mode looks smoothest)\n",
+                (unsigned long)s_disp_period_us, 1e6 / (double)s_disp_period_us);
+        return;
+    }
     s_dbuf = 1;
     s_front = 0;
     s_back = 1;
-    fprintf(stderr, "[video] double buffered: two screen buffers, flipped at the "
-                    "vertical blank\n");
+    fprintf(stderr, "[video] double buffered, display refresh %lu us (%.1f Hz): frames paced "
+                    "by the flip\n", (unsigned long)s_disp_period_us,
+            1e6 / (double)s_disp_period_us);
 }
 
 static void dbuf_close(void)
@@ -955,6 +1071,7 @@ void Platform_RenderFrame(void)
             if (fd > s_st_max_flip)
                 s_st_max_flip = fd;
             if (ok) {
+                s_flipped = 1;
                 s_safe_pending[s_front] = 1;    /* the old one, once it is off screen */
                 s_front = b;
                 s_back = 1 - b;
@@ -1007,6 +1124,17 @@ static void pace(void)
 {
     uint64_t period = 1000000u / (uint64_t)Platform_ActivePacingFps();
     uint64_t now = now_us();
+
+    /* Paced by the display: the flip already waited for the vertical blank. The
+     * timer takes over when a frame does not flip (nothing on screen changed). */
+    s_locked = s_flipped && display_paces(period);
+    s_flipped = 0;
+    if (s_locked) {
+        if (s_next_frame_us && now > s_next_frame_us + period + period / 2)
+            s_st_late++;
+        s_next_frame_us = now;
+        return;
+    }
 
     if (s_next_frame_us == 0)
         s_next_frame_us = now;
