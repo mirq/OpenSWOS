@@ -267,12 +267,14 @@ void mainC(void)
         if (!_gArcadeMode) {
             InputSDL_SetIntroClaim(1);
             ShowLoaderIntroSequence();
+            { extern void LoaderIntro_Done(void); LoaderIntro_Done(); }
             InputSDL_SetIntroClaim(0);
         }
     }
 #else
 #ifndef PITCH_SCROLL_TEST
     ShowLoaderIntroSequence();   /* skipped in the scroll-test rig: boot straight to the pitch */
+    { extern void LoaderIntro_Done(void); LoaderIntro_Done(); }
 #endif
 #endif
     AssetLoaderInitAltPathAndBanks();

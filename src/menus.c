@@ -2359,11 +2359,25 @@ extern void Career_FillCurrentSeasonInfo(void);
 extern uint8_t _managementRecordMenu[];
 extern uint8_t _viewCompetitionsMenu[];
 
+void MultiplayerMenuSelected(void);   /* below */
+
 /* SWOSMainMenuInit — calls CommonMenuExit on main menu init (SWOS2.s line 68835) */
 __attribute__((used, externally_visible))
 void SWOSMainMenuInit(void)
 {
     CommonMenuExit();
+#ifdef SWOS_WARPOS_BUILD
+    /* No online play in this build (src/netplay_offline.c): MULTIPLAYER would be a
+     * button that does nothing. Found by its handler, not by number. */
+    {
+        extern uint8_t _currentMenu[];
+        const Menu *menu = (const Menu *)_currentMenu;
+        uint16_t i;
+        for (i = 0; i < menu->numEntries; i++)
+            if (_menuEntries[i].onSelect == (MenuEntryFn)MultiplayerMenuSelected)
+                _menuEntries[i].isInvisible = 1;
+    }
+#endif
 }
 
 /* MultiplayerMenuSelected — OpenSWOS's MULTIPLAYER button: SWOS 2020's online flow,

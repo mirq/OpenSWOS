@@ -102,6 +102,7 @@ bin/SWOS.aarch64
 bin/SWOS.armhf
 bin/SWOS.macos
 bin/SWOS.warpelf
+bin/SWOS.wos
 bin/SWOS.log
 # The game's log, wherever it was run from (it writes beside itself).
 /SWOS.log*

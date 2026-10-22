@@ -210,6 +210,70 @@ void Arcade_PlayHeroMusic(void)
  *   bytes/plane row, NUM_PLANES planes, decode SCREEN_WIDTH pixels
  *   per scanline.
  * ================================================================ */
+
+/* ---- An OCS loading screen in the AGA chunky build ----
+ * On AGA every loading screen is shown in the menu palette: the AGA frames the
+ * data setup makes (grafs_aga/LOADER*.RAW) are drawn in it. Without them the game
+ * falls back to the OCS frames in grafs/, 4 planes in the 16 colours of their own
+ * palette -- the title screen's, its text's, its logo's -- which the OCS build
+ * picks with _paletteIndex = 3 / 5 / 6 and the AGA build never builds or picks,
+ * so they came up in the menu's colours (seen on WarpOS, 2026-10-22, whose data
+ * was a plain Amiga install). The choice each screen makes is recorded here, and
+ * a frame that decodes as 4 planes is shown in it: its 16 colours as a 256-entry
+ * table, since the AGA fade reads 256, in the screen's own slot (3, 5, 6: unused
+ * by AGA frames). An 8-plane frame is shown as before, in the menu palette. */
+#if defined(SWOS_CHUNKY_BUILD) && defined(AGA)
+static int16_t  s_ocsPaletteIndex = 3;
+static uint16_t s_ocsPalette[256];
+static int      s_ocsShown;         /* the copper holds an OCS frame's palette */
+#define LOADER_OCS_PALETTE(n) (s_ocsPaletteIndex = (n))
+
+static void loaderIntroUsePaletteFor(uint16_t framePlanes)
+{
+    extern void *_paletteTable[];
+    extern uint8_t _kTitleLogoColors[], _kTitleScreenColors[], _kTitleTextColors[];
+    extern void BuildPaletteFromColors(const uint8_t *src, uint16_t *dst);
+    extern void WriteCopperPalette(const uint16_t *palette);
+    extern uint16_t _menuPalette[];
+    const uint8_t *colors;
+
+    if (framePlanes > 4) {
+        _paletteIndex = 0;
+        if (s_ocsShown) {           /* an AGA frame after an OCS one: its palette back */
+            WriteCopperPalette(_menuPalette);
+            s_ocsShown = 0;
+        }
+        return;
+    }
+    switch (s_ocsPaletteIndex) {
+    case 5:  colors = _kTitleTextColors;   break;
+    case 6:  colors = _kTitleLogoColors;   break;
+    default: colors = _kTitleScreenColors; s_ocsPaletteIndex = 3; break;
+    }
+    memset(s_ocsPalette, 0, sizeof s_ocsPalette);
+    BuildPaletteFromColors(colors, s_ocsPalette);
+    _paletteTable[s_ocsPaletteIndex] = s_ocsPalette;
+    _paletteIndex = (uint16_t)s_ocsPaletteIndex;
+    /* AGA shows a loading frame without a fade, in the palette the copper holds:
+     * this frame's goes there now. (The one path that does fade, fire pressed,
+     * fades to it through _paletteIndex.) */
+    WriteCopperPalette(s_ocsPalette);
+    s_ocsShown = 1;
+}
+#endif
+
+/* The intro is over: the menus fade in through _paletteIndex, which is the menu
+ * palette's (0) on AGA. A no-op unless an OCS loading screen changed it. */
+void LoaderIntro_Done(void)
+{
+#if defined(SWOS_CHUNKY_BUILD) && defined(AGA)
+    _paletteIndex = 0;
+#endif
+}
+#if !(defined(SWOS_CHUNKY_BUILD) && defined(AGA)) && defined(AGA)
+#define LOADER_OCS_PALETTE(n) ((void)0)
+#endif
+
 static void loaderIntroLoadFrameToFrontbufferAlt(const uint8_t *filename)
 {
 #ifdef SWOS_CHUNKY_BUILD
@@ -225,6 +289,9 @@ static void loaderIntroLoadFrameToFrontbufferAlt(const uint8_t *filename)
      * AGA) so loader frames decode at their own depth, not NUM_PLANES. */
     uint16_t framePlanes    = DetectBankPlanes(frameSize, PLANE_STRIDE, SCREEN_HEIGHT);
     uint32_t frameRowStride = (uint32_t)PLANE_STRIDE * framePlanes;
+#ifdef AGA
+    loaderIntroUsePaletteFor(framePlanes);
+#endif
     memset(dstAlt, 0, FRONTBUFFER_SIZE_TOTAL_BYTES);
     for (int y = 0; y < SCREEN_HEIGHT; y++) {
         const uint8_t *rowSrc = _rawAssetLoadBuffer + (size_t)y * frameRowStride;
@@ -437,6 +504,8 @@ void ShowLoaderIntroSequence(void)
         /* Fire pressed path: just show loader1.raw and fade in */
 #ifndef AGA
         _paletteIndex = 3;
+#else
+        LOADER_OCS_PALETTE(3);
 #endif
         loaderIntroLoadFrameToFrontbufferAlt((const uint8_t *)GRAFS "loader1.raw");
         FadeIn();
@@ -447,6 +516,8 @@ void ShowLoaderIntroSequence(void)
 
 #ifndef AGA
     _paletteIndex = 6;
+#else
+    LOADER_OCS_PALETTE(6);
 #endif
 
     if (loaderIntroShowFrameFadeInOut((const uint8_t *)GRAFS "loader00.raw", 0xFA) != 0)
@@ -459,6 +530,8 @@ void ShowLoaderIntroSequence(void)
     /* Frame 2: loader1.raw (with music) */
 #ifndef AGA
     _paletteIndex = 3;
+#else
+    LOADER_OCS_PALETTE(3);
 #endif
     if (loaderIntroShowFrameWithMusic((const uint8_t *)GRAFS "loader1.raw", 0xFA) != 0)
         goto exit_cleanup;
@@ -466,6 +539,8 @@ void ShowLoaderIntroSequence(void)
     /* Frame 3: loader2.raw */
 #ifndef AGA
     _paletteIndex = 5;
+#else
+    LOADER_OCS_PALETTE(5);
 #endif
     if (loaderIntroShowFrameFadeInOut((const uint8_t *)GRAFS "loader2.raw", 0xFA) != 0)
         goto load_fail_mid;
@@ -494,6 +569,8 @@ void ShowLoaderIntroSequence(void)
     /* Final frame: loader1.raw with extended timeout (0x6D6 = 1750 frames) */
 #ifndef AGA
     _paletteIndex = 3;
+#else
+    LOADER_OCS_PALETTE(3);
 #endif
     loaderIntroShowFrameFadeInOut((const uint8_t *)GRAFS "loader1.raw", 0x6D6);
     /* Fall through to exit_cleanup (ignore return value) */
@@ -529,6 +606,8 @@ load_fail_mid:
         FadeOutToBlack();
 #ifndef AGA
         _paletteIndex = 3;
+#else
+        LOADER_OCS_PALETTE(3);
 #endif
         loaderIntroLoadFrameToFrontbufferAlt((const uint8_t *)GRAFS "loader1.raw");
         FadeIn();
@@ -540,6 +619,8 @@ load_fail_early:
         FadeOutToBlack();
 #ifndef AGA
         _paletteIndex = 3;
+#else
+        LOADER_OCS_PALETTE(3);
 #endif
         loaderIntroLoadFrameToFrontbufferAlt((const uint8_t *)GRAFS "loader1.raw");
         FadeIn();

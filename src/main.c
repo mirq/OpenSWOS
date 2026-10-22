@@ -87,10 +87,13 @@ static void chdir_to_binary(const char *argv0)
 
 #ifdef SWOS_WARPOS_BUILD
     /* AmigaOS names the program's own drawer PROGDIR:, however it was started
-     * (Shell, Workbench icon, a path with or without a volume). */
+     * (Shell, Workbench icon, a path with or without a volume). Not newlib's
+     * chdir: it UnLocks the directory it leaves, which is the Shell's, and the
+     * Shell unlocks it again -- Exec's memory list breaks (AN_MemoryInsane). */
     (void)argv0; (void)path; (void)dir; (void)got_path;
-    if (chdir("PROGDIR:") != 0)
-        fprintf(stderr, "warning: chdir(PROGDIR:) failed\n");
+    { extern int Platform_EnterProgramDir(void);
+      if (Platform_EnterProgramDir() != 0)
+          fprintf(stderr, "warning: could not enter PROGDIR:\n"); }
     return;
 #endif
 
@@ -374,6 +377,17 @@ int main(int argc, char **argv)
      * slowed down by that. It costs nothing on a run that completes. */
     setvbuf(stdout, NULL, _IOLBF, 0);
 
+#ifdef SWOS_WARPOS_BUILD
+    /* `_custom` starts out at the real chipset (0xDFF000, display.c), and on this
+     * machine a stray write there reaches the hardware, where under SDL it would
+     * only fault: point it at the stand-in registers before any game code runs. */
+    { extern void Platform_RewireCustom(void); Platform_RewireCustom(); }
+    /* stderr to the development bridge from the first line on, the file once the
+     * game folder is known (platform_wos.c). */
+    { extern int Platform_OpenSyncLog(const char *path); Platform_OpenSyncLog(NULL); }
+    fprintf(stderr, "[wos] main: started\n");
+#endif
+
     /* Before anything sleeps: on Windows every SDL_Delay is otherwise rounded up
      * to a 15.6 ms tick (src/platform_timer.c). That includes the self-tests
      * below, which is why --netplay-selftest looked hung on Windows. */
@@ -404,6 +418,9 @@ int main(int argc, char **argv)
 #if !defined(SWOS_WASM_BUILD) && !defined(SWOS_SWITCH_BUILD)
     chdir_to_binary(argv ? argv[0] : NULL);
 #endif
+#ifdef SWOS_WARPOS_BUILD
+    fprintf(stderr, "[wos] main: in the game's drawer\n");
+#endif
 
     /* Resolve the per-user game folder + save dir NOW, before Settings_Load, so
      * SWOS.ini reads/writes from the same per-user location as the save/ folder
@@ -411,6 +428,9 @@ int main(int argc, char **argv)
      * folder if missing; if it can't be resolved, falls back to the exe dir.
      * (Was called later, after SDL_Init — moved up so the ini lookup uses it.) */
     swos_save_dir_init();
+#ifdef SWOS_WARPOS_BUILD
+    fprintf(stderr, "[wos] main: save folder ready\n");
+#endif
 
 #ifdef SWOS_CHUNKY_BUILD
     /* Data-file JSON loader self-test (docs/DATA_INTERNAL_JSON.md). Runs before
@@ -1153,11 +1173,18 @@ int main(int argc, char **argv)
 #else
     if (getenv("SWOS_NO_LOG") == NULL) {
         char log_path[1088];
-        snprintf(log_path, sizeof log_path, "%s/SWOS.log", swos_user_dir());
+        swos_path_join(log_path, sizeof log_path, swos_user_dir(), "SWOS.log");
+#ifdef SWOS_WARPOS_BUILD
+        /* An AmigaDOS file's size is written when it is CLOSED: a log held open
+         * through a crash comes back empty, and a crash is when it is needed.
+         * Every write appends and closes (platform_wos.c). */
+        { extern int Platform_OpenSyncLog(const char *path); Platform_OpenSyncLog(log_path); }
+#else
         FILE *log = freopen(log_path, "w", stderr);
         if (log) {
             setvbuf(log, NULL, _IONBF, 0);
         }
+#endif
     }
 #endif
 
@@ -1378,6 +1405,9 @@ int main(int argc, char **argv)
         return 1;
     }
 
+#ifdef SWOS_WARPOS_BUILD
+    fprintf(stderr, "[wos] main: settings read, starting the platform\n");
+#endif
     if (Platform_Init(&opts) != 0) {
         fprintf(stderr, "Platform_Init failed\n");
         HOST_QUIT();
@@ -1391,6 +1421,9 @@ int main(int argc, char **argv)
     /* Hand off to the (ported) Amiga bootstrap. startShim runs _start()
      * (hardware init -- now no-ops via stubs) then mainC() which is the
      * actual game loop. The game pumps SDL via Platform_VBlank() callbacks. */
+#ifdef SWOS_WARPOS_BUILD
+    fprintf(stderr, "[wos] main: into the game\n");
+#endif
     startShim();
 
     /* Persist settings WITHOUT clobbering a hand-edited SWOS.ini: create the

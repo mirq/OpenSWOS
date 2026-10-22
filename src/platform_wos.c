@@ -47,6 +47,7 @@
 #include <devices/inputevent.h>
 #include <cybergraphx/cybergraphics.h>
 #include <proto/exec.h>
+#include <proto/dos.h>
 #include <proto/intuition.h>
 #include <proto/graphics.h>
 #include <proto/cybergraphics.h>
@@ -66,6 +67,7 @@ extern void _Int3TimerHandler(void);
 
 int  AudioSDL_Init(int mono);       /* audio_wos.c */
 void AudioSDL_Shutdown(void);
+void AudioSDL_Tick(void);
 void InputWos_Init(void);
 void InputWos_Shutdown(void);
 void InputWos_Key(uint16_t code, int repeat);
@@ -91,12 +93,198 @@ static int            s_win_scale = 1;
 /* The palette as LoadRGB32 last loaded it, and its XRGB8 mirror for the
  * WriteLUTPixelArray fallback -- kept together, so a mid-session demotion to
  * the fallback shows the right colours at once. */
+/* The frame as last copied to the card, to send only the rows that change. */
+static uint8_t s_shadow[672 * 272];
+static int     s_shadow_valid, s_shadow_w;
+
 static uint8_t s_rgb[768];
 static uint8_t s_rgb_loaded[768];
 static int     s_palette_loaded;
 static ULONG   s_ctable[256];
 
 static void (*s_frame_hook)(void);
+
+/* SWOS_PRESENT_STATS=1: where a frame's time goes, one line every 250 frames.
+ * `work` is the game's own (simulation and drawing, all PPC), `events` the
+ * window's messages and the joysticks, `show` the palette and the copy into the
+ * card -- those two are the 68k side, and every call there is a switch and a
+ * cache flush. `late` counts frames that missed their slot. */
+static int      s_present_stats = -1;
+static uint64_t s_st_work, s_st_events, s_st_audio, s_st_show, s_st_wait, s_st_last_end;
+static int32_t  s_st_n, s_st_late, s_st_palette;
+static uint32_t s_st_rows;
+
+/* ---- The program's drawer ------------------------------------------- */
+
+/* The current directory, as AmigaDOS has it: CurrentDir hands back the lock it
+ * replaces, which belongs to whoever started us and goes back at exit, never
+ * UnLocked here. */
+static BPTR s_old_dir;
+static BPTR s_prog_dir;
+static int  s_dir_entered;
+
+static void leave_program_dir(void)
+{
+    if (s_dir_entered) {
+        CurrentDir(s_old_dir);
+        UnLock(s_prog_dir);
+        s_dir_entered = 0;
+    }
+}
+
+int Platform_EnterProgramDir(void)
+{
+    s_prog_dir = Lock((CONST_STRPTR)"PROGDIR:", ACCESS_READ);
+    if (!s_prog_dir)
+        return -1;
+    s_old_dir = CurrentDir(s_prog_dir);
+    s_dir_entered = 1;
+    atexit(leave_program_dir);
+    return 0;
+}
+
+/* ---- The log ---------------------------------------------------------- */
+
+/* stderr as a stream whose every line goes, as it is written,
+ *   - to SWOS.log, opened, appended and closed each time: AmigaDOS writes a file's
+ *     size only on Close, so a log left open through a crash reads back empty;
+ *   - to the amiga-bridge daemon, when it runs (its port AMIGABRIDGE): the
+ *     development link to this machine, which shows the lines live and keeps them
+ *     whatever becomes of the machine.
+ * Installed first thing in main() with no file -- the bridge alone -- and given the
+ * file once the game folder is known. Slower than a plain file, and worth it: a
+ * write is a line, and a match writes few. */
+#pragma pack(push, 2)
+struct BridgeMsg {
+    struct Message msg;
+    UWORD          version;         /* 1 */
+    UWORD          type;            /* 1 register, 3 log */
+    ULONG          clientId;
+    ULONG          cmdId;
+    LONG           result;
+    ULONG          dataLen;
+    char           data[256];
+    APTR           extData;
+    ULONG          extDataLen;
+};
+#pragma pack(pop)
+
+static char              s_log_path[1088];
+static struct MsgPort   *s_ab_reply;
+static struct BridgeMsg *s_ab_msg;
+static ULONG             s_ab_client;
+
+static int bridge_send(UWORD type, const char *data, ULONG len)
+{
+    struct MsgPort *daemon;
+    struct Message *got;
+    if (!s_ab_msg)
+        return -1;
+    if (len > sizeof s_ab_msg->data)
+        len = sizeof s_ab_msg->data;
+    memset(s_ab_msg, 0, sizeof *s_ab_msg);
+    s_ab_msg->msg.mn_Node.ln_Type = NT_MESSAGE;
+    s_ab_msg->msg.mn_Length = sizeof *s_ab_msg;
+    s_ab_msg->msg.mn_ReplyPort = s_ab_reply;
+    s_ab_msg->version = 1;
+    s_ab_msg->type = type;
+    s_ab_msg->clientId = s_ab_client;
+    memcpy(s_ab_msg->data, data, len);
+    s_ab_msg->dataLen = len;
+    Forbid();
+    daemon = FindPort((CONST_STRPTR)"AMIGABRIDGE");
+    if (daemon)
+        PutMsg(daemon, &s_ab_msg->msg);
+    Permit();
+    if (!daemon)
+        return -1;
+    for (;;) {
+        WaitPort(s_ab_reply);
+        got = GetMsg(s_ab_reply);
+        if (got == &s_ab_msg->msg)
+            break;
+        if (got)
+            ReplyMsg(got);          /* the daemon asking something: nothing to say */
+    }
+    return (int)s_ab_msg->result;
+}
+
+static void bridge_open(void)
+{
+    static const char name[] = "OpenSWOS";
+    if (s_ab_msg)
+        return;
+    s_ab_reply = CreateMsgPort();
+    s_ab_msg = (struct BridgeMsg *)AllocVec(sizeof *s_ab_msg, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!s_ab_reply || !s_ab_msg || bridge_send(1, name, sizeof name) != 0) {
+        if (s_ab_msg) FreeVec(s_ab_msg);
+        if (s_ab_reply) DeleteMsgPort(s_ab_reply);
+        s_ab_msg = NULL;
+        s_ab_reply = NULL;
+        return;
+    }
+    s_ab_client = s_ab_msg->clientId;
+}
+
+/* One write of stderr as log messages: "1|text", no newline, 250 bytes at most each. */
+static void bridge_log(const char *buf, int n)
+{
+    char line[256];
+    while (n > 0) {
+        int k = n > 250 ? 250 : n, len = k;
+        while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
+            len--;
+        line[0] = '1';              /* AB_INFO */
+        line[1] = '|';
+        memcpy(line + 2, buf, (size_t)len);
+        line[2 + len] = '\0';
+        if (len > 0)
+            bridge_send(3, line, (ULONG)(len + 3));
+        buf += k;
+        n -= k;
+    }
+}
+
+static int sync_log_write(void *cookie, const char *buf, int n)
+{
+    FILE *f;
+    (void)cookie;
+    if (s_ab_msg)
+        bridge_log(buf, n);
+    if (!s_log_path[0])
+        return n;
+    f = fopen(s_log_path, "a");
+    if (!f)
+        return n;                   /* nowhere to write it: drop it, never fail stderr */
+    fwrite(buf, 1, (size_t)n, f);
+    fclose(f);
+    return n;
+}
+
+/* path NULL: the bridge only (the first thing main() does). A path: that file too,
+ * started afresh. */
+int Platform_OpenSyncLog(const char *path)
+{
+    static FILE *s_log;
+    bridge_open();
+    if (path) {
+        FILE *f;
+        snprintf(s_log_path, sizeof s_log_path, "%s", path);
+        f = fopen(s_log_path, "w");     /* a new log each run */
+        if (f)
+            fclose(f);
+        else
+            s_log_path[0] = '\0';
+    }
+    if (!s_log) {
+        s_log = fwopen(NULL, sync_log_write);     /* newlib's BSD funopen */
+        if (!s_log)
+            return -1;
+        setvbuf(s_log, NULL, _IOLBF, 0);  /* a line at a time */
+        stderr = s_log;
+    }
+    return 0;
+}
 
 /* ---- The clock ------------------------------------------------------ */
 
@@ -118,6 +306,8 @@ static uint64_t s_last_isr_ms;
 
 /* As platform_sdl.c's, without the lock: there is one thread. Throttled to just
  * under a frame so a wait loop that calls it twice in a frame ticks once. */
+static uint32_t s_isr_count, s_present_count;
+
 void RunInt3HandlerThrottled(void)
 {
     const uint64_t thr = (uint64_t)(1000 / Platform_ActivePacingFps() - 2);
@@ -126,6 +316,17 @@ void RunInt3HandlerThrottled(void)
         return;
     s_last_isr_ms = now;
     _Int3TimerHandler();
+    /* A heartbeat: alive, and whether frames are being shown or something waits
+     * on the clock alone (a fade, a delay). */
+    if (++s_isr_count % 500 == 0)
+        fprintf(stderr, "[wos] alive: %u interrupt ticks, %u frames shown, clock %lu ms\n",
+                (unsigned)s_isr_count, (unsigned)s_present_count, (unsigned long)now);
+}
+
+/* A wait that never leaves the PPC: powerpc.library's WaitTime, in microseconds. */
+void Platform_SleepUs(uint32_t us)
+{
+    WaitTime(0, (ULONG)us);
 }
 
 /* No timer thread to quiesce or resume. */
@@ -222,6 +423,7 @@ int Platform_Init(const PlatformInitOptions *opts)
         s_win_scale = opts->win_scale;
     }
 
+    fprintf(stderr, "[wos] Platform_Init: opening libraries\n");
     IntuitionBase = (struct IntuitionBase *)OpenLibrary((CONST_STRPTR)"intuition.library", 39);
     GfxBase       = (struct GfxBase *)OpenLibrary((CONST_STRPTR)"graphics.library", 39);
     /* v41: the first with LockBitMapTagList and WriteLUTPixelArray, and what
@@ -237,6 +439,7 @@ int Platform_Init(const PlatformInitOptions *opts)
         return -1;
     }
 
+    fprintf(stderr, "[wos] choosing a mode\n");
     s_mode_id = choose_mode(opts);
     if (s_mode_id == (ULONG)INVALID_ID) {
         fprintf(stderr, "[video] no 8-bit RTG mode with room for %dx%d: add one in "
@@ -247,6 +450,7 @@ int Platform_Init(const PlatformInitOptions *opts)
     s_mode_w = (int)GetCyberIDAttr(CYBRIDATTR_WIDTH, s_mode_id);
     s_mode_h = (int)GetCyberIDAttr(CYBRIDATTR_HEIGHT, s_mode_id);
 
+    fprintf(stderr, "[wos] opening the screen, mode $%08lx %dx%d\n", (unsigned long)s_mode_id, s_mode_w, s_mode_h);
     /* NO SA_BitMap: the card owns the display memory. */
     s_screen = OpenScreenTags(NULL,
                               SA_Width,     (ULONG)s_mode_w,
@@ -268,6 +472,7 @@ int Platform_Init(const PlatformInitOptions *opts)
             s_mode_w, s_mode_h, (unsigned long)s_mode_id,
             (unsigned long)GetVPModeID(&s_screen->ViewPort), _screen_width, _screen_height);
 
+    fprintf(stderr, "[wos] opening the window\n");
     /* A borderless backdrop window, for the keyboard: Intuition has no other way
      * to read it. It never draws. */
     s_window = OpenWindowTags(NULL,
@@ -286,19 +491,23 @@ int Platform_Init(const PlatformInitOptions *opts)
     ActivateWindow(s_window);   /* WFLG_ACTIVATE alone is not reliable */
     ScreenToFront(s_screen);    /* and says nothing about which SCREEN shows */
 
+    fprintf(stderr, "[wos] blanking the pointer\n");
     /* No pointer over the game: a sprite of zeros, in Chip RAM. */
     s_blank_pointer = (UWORD *)AllocVec(6 * sizeof(UWORD), MEMF_CHIP | MEMF_CLEAR);
     if (s_blank_pointer)
         SetPointer(s_window, s_blank_pointer, 1, 16, 0, 0);
 
+    fprintf(stderr, "[wos] clearing the screen, probing the lock\n");
     SetRast(&s_screen->RastPort, 0);    /* the border is colour 0, as on the Amiga */
     probe_lock();
 
+    fprintf(stderr, "[wos] input, audio\n");
     Platform_RewireCustom();
     Platform_PreArmIsrGlobals();
     InputWos_Init();
     (void)AudioSDL_Init(opts ? opts->audio_mono : 1);
     s_last_isr_ms = Platform_NowMs();
+    fprintf(stderr, "[wos] Platform_Init done\n");
     return 0;
 }
 
@@ -345,6 +554,7 @@ static void load_palette(void)
     }
     table[1 + 256 * 3] = 0UL;
     LoadRGB32(&s_screen->ViewPort, table);
+    s_st_palette++;
     memcpy(s_rgb_loaded, s_rgb, sizeof s_rgb);
     s_palette_loaded = 1;
 }
@@ -408,18 +618,40 @@ void Platform_RenderFrame(void)
         s_shown_w = w;
         s_shown_h = h;
         s_clear_borders = 0;
+        s_shadow_valid = 0;             /* the screen was cleared: every row again */
     }
 
-    if (s_use_lock && !blit_locked(fb, _screen_width, dx, dy, w, h)) {
-        s_use_lock = 0;
-        fprintf(stderr, "[video] the lock stopped giving an 8-bit surface: "
-                        "WriteLUTPixelArray from now on\n");
+    /* Only the rows that changed since the frame before: a menu that does not move
+     * costs nothing, a scrolling match the lot. The copy goes over the card's bus,
+     * the compare runs in the PPC's own memory. */
+    {
+        int r0 = 0, r1 = h, r;
+        if (s_shadow_valid && w == s_shadow_w) {
+            while (r0 < h && memcmp(fb + (size_t)r0 * _screen_width, s_shadow + (size_t)r0 * w, (size_t)w) == 0)
+                r0++;
+            while (r1 > r0 && memcmp(fb + (size_t)(r1 - 1) * _screen_width, s_shadow + (size_t)(r1 - 1) * w, (size_t)w) == 0)
+                r1--;
+        }
+        if (r0 >= r1)
+            return;                     /* nothing changed */
+        for (r = r0; r < r1; r++)
+            memcpy(s_shadow + (size_t)r * w, fb + (size_t)r * _screen_width, (size_t)w);
+        s_shadow_valid = 1;
+        s_shadow_w = w;
+        s_st_rows += (uint32_t)(r1 - r0);
+
+        if (s_use_lock && !blit_locked(fb + (size_t)r0 * _screen_width, _screen_width,
+                                       dx, dy + r0, w, r1 - r0)) {
+            s_use_lock = 0;
+            fprintf(stderr, "[video] the lock stopped giving an 8-bit surface: "
+                            "WriteLUTPixelArray from now on\n");
+        }
+        if (!s_use_lock)
+            WriteLUTPixelArray((APTR)fb, 0, (UWORD)r0, (UWORD)_screen_width,
+                               &s_screen->RastPort, (APTR)s_ctable,
+                               (UWORD)dx, (UWORD)(dy + r0), (UWORD)w, (UWORD)(r1 - r0),
+                               (UBYTE)CTABFMT_XRGB8);
     }
-    if (!s_use_lock)
-        WriteLUTPixelArray((APTR)fb, 0, 0, (UWORD)_screen_width,
-                           &s_screen->RastPort, (APTR)s_ctable,
-                           (UWORD)dx, (UWORD)dy, (UWORD)w, (UWORD)h,
-                           (UBYTE)CTABFMT_XRGB8);
 }
 
 /* ---- The event loop and the pace ------------------------------------- */
@@ -443,8 +675,11 @@ static void pump_events(void)
     InputWos_PostFrame();
 }
 
+#define WAIT_SPIN_US 1500
+
 static uint64_t s_next_frame_us;
 static int      s_catchup_frames = 1;
+
 
 /* Wait for the next frame's slot at the rate the game is paced at. A frame that
  * ran late runs the next one at once; more than the catch-up's worth behind, the
@@ -461,9 +696,18 @@ static void pace(void)
         uint64_t wait = s_next_frame_us - now;
         if (wait > period * 2)
             wait = period, s_next_frame_us = now + period;     /* the clock went back */
-        WaitTime(0, (ULONG)wait);
-    } else if (now - s_next_frame_us > period * (uint64_t)s_catchup_frames) {
-        s_next_frame_us = now;
+        /* WaitTime comes back late by up to a scheduler slice: sleep to within
+         * WAIT_SPIN_US of the slot, then spin on the timebase, which costs the 68k
+         * nothing. Measured before this: 70 of 250 frames late. */
+        if (wait > WAIT_SPIN_US)
+            WaitTime(0, (ULONG)(wait - WAIT_SPIN_US));
+        while (now_us() < s_next_frame_us)
+            ;
+        s_st_wait += wait;
+    } else {
+        s_st_late++;
+        if (now - s_next_frame_us > period * (uint64_t)s_catchup_frames)
+            s_next_frame_us = now;
     }
 }
 
@@ -477,11 +721,61 @@ void Platform_DelayNextFrame(uint32_t us)
     s_next_frame_us += us;
 }
 
+static void present_stats(uint64_t t0, uint64_t ta, uint64_t t1, uint64_t t2)
+{
+    if (s_st_last_end)
+        s_st_work += t0 - s_st_last_end;
+    s_st_events += ta - t0;
+    s_st_audio += t1 - ta;
+    s_st_show += t2 - t1;
+    if (++s_st_n >= 250) {
+        double n = (double)s_st_n;
+        fprintf(stderr, "[present] per frame: work %.2f ms, events %.2f ms, audio %.2f ms, "
+                        "show %.2f ms (%.0f rows), wait %.2f ms (target %.2f ms at %d Hz); "
+                        "%d late, %d palette loads of %d frames\n",
+                s_st_work / n / 1000.0, s_st_events / n / 1000.0, s_st_audio / n / 1000.0,
+                s_st_show / n / 1000.0, s_st_rows / n,
+                s_st_wait / n / 1000.0, 1000.0 / Platform_ActivePacingFps(),
+                Platform_ActivePacingFps(), s_st_late, s_st_palette, s_st_n);
+        s_st_work = s_st_events = s_st_audio = s_st_show = s_st_wait = 0;
+        s_st_n = s_st_late = s_st_palette = 0;
+        s_st_rows = 0;
+    }
+}
+
 int Platform_Present(void)
 {
+    static int32_t s_frames;
+    s_present_count++;
+    if (s_frames < 3 || s_frames == 50 || s_frames == 500)
+        fprintf(stderr, "[wos] frame %d\n", (int)s_frames);
+    s_frames++;
+    uint64_t t0 = 0, ta = 0, t1 = 0, t2 = 0;
+    if (s_present_stats < 0)
+        s_present_stats = getenv("SWOS_PRESENT_STATS") != NULL;
+    if (s_present_stats)
+        t0 = now_us();
     pump_events();
+    if (s_present_stats)
+        ta = now_us();
+    /* The sound: one thread, so this is its only pump, once a frame -- as on WASM,
+     * real ticks until the queue is at its target (each returns at once when it is),
+     * never a pad of silence. */
+    {
+        int i;
+        for (i = 0; i < 16; i++)
+            AudioSDL_Tick();
+    }
+    if (s_present_stats)
+        t1 = now_us();
     Platform_RenderFrame();
+    if (s_present_stats) {
+        t2 = now_us();
+        present_stats(t0, ta, t1, t2);
+    }
     pace();
+    if (s_present_stats)
+        s_st_last_end = now_us();
     return 0;
 }
 

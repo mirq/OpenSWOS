@@ -10,8 +10,6 @@
 #include "platform_sdl.h"
 #ifdef SWOS_SDL_BUILD
 #include <SDL.h>
-#else
-#include <unistd.h>             /* usleep */
 #endif
 #ifdef SWOS_WASM_BUILD
 #include <emscripten.h>
@@ -50,7 +48,9 @@ static inline void fade_wait_one_isr_tick(void)
 #elif defined(SWOS_SDL_BUILD)
     SDL_Delay(2);
 #else
-    usleep(2000);
+    /* WarpOS: powerpc.library's own wait. newlib's usleep is the 68k Delay, whose
+     * 50 Hz granularity rounds 2 ms to nothing -- a tight loop of 68k calls. */
+    { extern void Platform_SleepUs(uint32_t us); Platform_SleepUs(2000); }
 #endif
 }
 #define FADE_SPIN_BODY() fade_wait_one_isr_tick()

@@ -190,6 +190,20 @@ const char *swos_save_dir(void)
     return s_save_dir;
 }
 
+/* dir + name: no "./" in front when dir is "." (the WarpOS newlib does not take a
+ * leading "./"), and no '/' after a dir ending in ':' or '/' (AmigaDOS reads
+ * "PROGDIR:/x" as the parent's x). The same file on every host. */
+void swos_path_join(char *out, uint32_t cap, const char *dir, const char *name)
+{
+    size_t n = dir ? strlen(dir) : 0;
+    if (n == 0 || (n == 1 && dir[0] == '.'))
+        snprintf(out, cap, "%s", name);
+    else if (dir[n - 1] == ':' || dir[n - 1] == '/')
+        snprintf(out, cap, "%s%s", dir, name);
+    else
+        snprintf(out, cap, "%s/%s", dir, name);
+}
+
 const char *swos_user_dir(void)
 {
     return s_user_dir;
@@ -201,7 +215,7 @@ const char *swos_user_dir(void)
 const char *swos_ini_path(void)
 {
     static char s_ini[1088];
-    snprintf(s_ini, sizeof s_ini, "%s/SWOS.ini", s_user_dir);
+    swos_path_join(s_ini, sizeof s_ini, s_user_dir, "SWOS.ini");
     return s_ini;
 }
 
@@ -417,7 +431,7 @@ static void assets_dir_init(void)
     if (env && *env)
         snprintf(s_assets_dir, sizeof s_assets_dir, "%s", env);
     else
-        snprintf(s_assets_dir, sizeof s_assets_dir, "%s/assets", s_user_dir);
+        swos_path_join(s_assets_dir, sizeof s_assets_dir, s_user_dir, "assets");
     size_t n = strlen(s_assets_dir);
     while (n > 1 && (s_assets_dir[n - 1] == '/' || s_assets_dir[n - 1] == '\\'))
         s_assets_dir[--n] = '\0';
@@ -483,7 +497,7 @@ int swos_io_save(const uint8_t *name, const uint8_t *buf, uint32_t size)
 static int find_nocase(const char *root, const char *rel, char *out, uint32_t cap)
 {
     struct stat st;
-    snprintf(out, cap, "%s/%s", root, rel);
+    swos_path_join(out, cap, root, rel);
     if (stat(out, &st) == 0) return 0;
 
     char cur[1024];
@@ -500,8 +514,9 @@ static int find_nocase(const char *root, const char *rel, char *out, uint32_t ca
         int found = 0;
         while ((e = readdir(d)) != NULL) {
             if (strlen(e->d_name) == len && strncasecmp(e->d_name, p, len) == 0) {
-                size_t n = strlen(cur);
-                snprintf(cur + n, sizeof cur - n, "/%s", e->d_name);
+                char next[1024];
+                swos_path_join(next, sizeof next, cur, e->d_name);
+                snprintf(cur, sizeof cur, "%s", next);
                 found = 1;
                 break;
             }

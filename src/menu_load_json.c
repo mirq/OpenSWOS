@@ -41,7 +41,11 @@
 #define MK_COORDS_WIDE 0xFFFEu  /* word coords (default) */
 
 /* ======================================================================
- * Byte writer — host-native little-endian on the SDL build.
+ * Byte writer — HOST-NATIVE, as the compiled static menus are (menu_data.c is C
+ * data): little-endian on x86/ARM, big-endian on the WarpOS PPC. Until 2026-10-22
+ * this wrote little-endian whatever the host, so on a big-endian one every menu
+ * compared as edited and packed_source_len misread each compiled menu's length --
+ * the bound of the in-place overwrite below.
  * ====================================================================== */
 typedef struct { uint8_t *p; uint8_t *end; int overflow; } MWriter;
 
@@ -52,18 +56,15 @@ static void w8(MWriter *w, unsigned v)
 }
 static void w16(MWriter *w, unsigned v)
 {
+    uint16_t x = (uint16_t)v;
     if (w->p + 2 > w->end) { w->overflow = 1; return; }
-    w->p[0] = (uint8_t)(v & 0xFF);
-    w->p[1] = (uint8_t)((v >> 8) & 0xFF);
+    memcpy(w->p, &x, 2);
     w->p += 2;
 }
 static void w32(MWriter *w, uint32_t v)
 {
     if (w->p + 4 > w->end) { w->overflow = 1; return; }
-    w->p[0] = (uint8_t)(v & 0xFF);
-    w->p[1] = (uint8_t)((v >> 8) & 0xFF);
-    w->p[2] = (uint8_t)((v >> 16) & 0xFF);
-    w->p[3] = (uint8_t)((v >> 24) & 0xFF);
+    memcpy(w->p, &v, 4);
     w->p += 4;
 }
 /* Native pointer-width slot — UnpackMenu reads these via memcpy(sizeof(uintptr_t)). */
@@ -78,7 +79,7 @@ static void wptr(MWriter *w, void *ptr)
  *      learn its byte length (the in-place install's overflow bound). Mirrors
  *      the parse in UnpackMenu / the build above, payload-width for payload-
  *      width, so it can never disagree about how far a menu extends. ---- */
-static unsigned rd16(const uint8_t *p) { return (unsigned)p[0] | ((unsigned)p[1] << 8); }
+static unsigned rd16(const uint8_t *p) { uint16_t x; memcpy(&x, p, 2); return x; }
 
 static int op_payload_width(int op)
 {
@@ -432,8 +433,11 @@ static void emit_entry(MWriter *w, const char *it, int itl, int byteMode, const 
      * UnpackMenu consumes that marker and then reads the coordinates without looking.
      * No compiled menu has such an entry (it would never have unpacked), so their
      * bytes are unchanged. */
-    unsigned first = byteMode ? (unsigned)((x & 0xFF) | ((y & 0xFF) << 8))
-                              : (unsigned)(x & 0xFFFF);     /* as w16/w8 lay it down */
+    unsigned first = (unsigned)(x & 0xFFFF);    /* as w16/w8 lay it down, read back */
+    if (byteMode) {
+        uint8_t b[2] = { (uint8_t)(x & 0xFF), (uint8_t)(y & 0xFF) };
+        first = rd16(b);
+    }
     if (is_stream_marker(first))
         w16(w, byteMode ? MK_COORDS_BYTE : MK_COORDS_WIDE);
     if (byteMode) {

@@ -51,6 +51,9 @@ const char *swos_save_dir(void);
  * swos_save_dir_init() resolves it. Stable, NUL-terminated, no trailing slash. */
 const char *swos_user_dir(void);
 
+/* dir + "/" + name, as every target takes it: dir "." left out, no '/' after a ':'. */
+void swos_path_join(char *out, uint32_t cap, const char *dir, const char *name);
+
 /* Full path to SWOS.ini in the user's game folder (swos_user_dir() + "/SWOS.ini").
  * Static buffer; the returned pointer is stable for the program's lifetime. */
 const char *swos_ini_path(void);

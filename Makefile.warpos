@@ -1,13 +1,14 @@
 # OpenSWOS for WarpOS (PowerPC) on a Picasso96 RTG screen -- docs/WARPOS.md.
 #
-#   make -f Makefile.warpos -j$(nproc)      -> bin/SWOS.warpelf
+#   make -f Makefile.warpos -j$(nproc)      -> bin/SWOS.wos (the WarpOS program)
 #
 # The chunky target without SDL: include/swos_platform.h gives it
 # SWOS_CHUNKY_BUILD and not SWOS_SDL_BUILD. Built by ppc-amigaos-gcc (adtools
 # 8.4) with the MOS2WOS WarpOS overlay, through the MiniGL SDK's common file,
-# which holds the toolchain paths and the ET_REL contract: the product is a
-# relocatable ELF that Elf2Exe2 converts ON THE AMIGA into a WarpOS executable.
-# No MiniGL is linked.
+# which holds the toolchain paths and the ET_REL contract: the link is a
+# relocatable ELF (bin/SWOS.warpelf), which tools/elf2warpos turns into the WarpOS
+# executable here, on Linux -- Elf2Exe2's job, without the Amiga (its header says
+# why). No MiniGL is linked.
 
 MGL_DIR ?= /home/mirek/MiniGL_WOS_V19_mglQ3
 # The oldest WarpOS boards (Blizzard/CyberStorm PPC) are 603e/604e: code for a
@@ -18,7 +19,9 @@ include $(MGL_DIR)/Makefile.wos.gcc.common
 SHELL := /bin/bash
 
 OBJDIR := build/warpos/ppc
-TARGET := bin/SWOS.warpelf
+ELF    := bin/SWOS.warpelf
+TARGET := bin/SWOS.wos
+PYTHON ?= python3
 
 BUILD_STAMP_UNUSED := $(shell sh scripts/gen_build_info.sh)
 
@@ -28,7 +31,6 @@ BUILD_STAMP_UNUSED := $(shell sh scripts/gen_build_info.sh)
 WOS_EXCLUDE_SRCS := \
     platform_sdl.c        \
     input_sdl.c           \
-    audio_sdl.c           \
     crt_effects.c         \
     mm_client.c           \
     netem_core.c          \
@@ -106,12 +108,14 @@ $(DEBUG_ELF): $(OBJECTS)
 	@$(LD) $(WOS_LINK_FLAGS) $(WOS_LIBRARY_DIRS) -o $@ \
 		$(WOS_STARTFILE) $(OBJECTS) $(WOS_RUNTIME_LIBS) $(WOS_ENDFILE)
 
-$(TARGET): $(DEBUG_ELF)
+$(ELF): $(DEBUG_ELF)
 	@$(WOS_CROSS)objcopy --strip-debug $< $@
 	$(call WOS_VALIDATE_ETREL,$@)
-	@echo "  OK  $@: convert it ON THE AMIGA with  Elf2Exe2 SWOS.warpelf SWOS"
+
+$(TARGET): $(ELF) tools/elf2warpos/elf2warpos.py
+	@$(PYTHON) tools/elf2warpos/elf2warpos.py $< $@
 
 clean:
-	rm -rf $(OBJDIR) $(TARGET)
+	rm -rf $(OBJDIR) $(ELF) $(TARGET)
 
 -include $(DEPS)

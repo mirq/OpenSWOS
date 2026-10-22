@@ -30,6 +30,8 @@
 #  else
 #    define SWOS_PLATFORM "amiga 68k"
 #  endif
+#elif defined(SWOS_WARPOS_BUILD)
+#  define SWOS_PLATFORM "warpos ppc"
 #elif defined(SWOS_SWITCH_BUILD)
 #  define SWOS_PLATFORM "switch"
 #elif defined(SWOS_WASM_BUILD) || defined(__EMSCRIPTEN__)

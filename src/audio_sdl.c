@@ -10,6 +10,10 @@
  * (usually 44.1 kHz, sometimes 48 kHz on WSL2 / Windows). RJP1_MixSamples
  * accepts the rate per call so resampling stays correct regardless.
  *
+ * The device is AudioOut_* (include/audio_out.h): SDL's audio queue on the SDL
+ * build (below), AHI on WarpOS (audio_wos.c), which builds this mixer without SDL
+ * -- one thread there, so no lock and no pump thread, and a WAV is read by hand.
+ *
  * Why queue mode instead of SDL audio callback mode: on WSL2 and some
  * Windows audio drivers, SDL's callback thread is scheduled extremely
  * unreliably — we measured persistent 91 ms gaps and occasional 2+ s
@@ -20,20 +24,37 @@
  */
 
 #include "platform_sdl.h"
+#include "audio_out.h"
 #include "rjp1.h"
 #include "sfx_debug.h"
 #include "dos_music.h"
 #include "music_stream.h"
 
+#ifdef SWOS_SDL_BUILD
 #include <SDL.h>
+#endif
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define AUDIO_SAMPLE_RATE 44100
 
-static SDL_AudioDeviceID s_audio_dev;
-static SDL_AudioSpec     s_audio_spec;
+static int               s_audio_dev;       /* 1: AudioOut_Open succeeded */
+static int               s_freq = AUDIO_SAMPLE_RATE;   /* the rate the device gave */
+#ifdef SWOS_SDL_BUILD
 static SDL_mutex        *s_mtx;
+#define AUDIO_LOCK()        SDL_LockMutex(s_mtx)
+#define AUDIO_UNLOCK()      SDL_UnlockMutex(s_mtx)
+#define AUDIO_READY()       (s_mtx != NULL)
+#define OVERLAY_FREE(p)     SDL_free(p)
+#else
+/* One thread: the frame loop is the only one that mixes or changes the mix. */
+static int               s_audio_ready;
+#define AUDIO_LOCK()        ((void)0)
+#define AUDIO_UNLOCK()      ((void)0)
+#define AUDIO_READY()       (s_audio_ready)
+#define OVERLAY_FREE(p)     free(p)
+#endif
 
 static RJP1_Player       s_player;
 static int               s_player_active;   /* 1 = RJP1_Load succeeded and a song is selected */
@@ -116,7 +137,7 @@ static int16_t           s_out_buf[48000 * 2 / 50 + 128];
  * which jitters more (browser scheduling / GC) than a native timer thread — a
  * deeper queue rides that out. Paired with the real-audio fill loop (below /
  * Platform_RenderFrame) instead of the native silence-pad. */
-#ifdef SWOS_WASM_BUILD
+#if defined(SWOS_WASM_BUILD) || defined(SWOS_WARPOS_BUILD)   /* both: pumped once a frame */
 #define QUEUE_TARGET_MS  120
 #else
 #define QUEUE_TARGET_MS  80
@@ -130,28 +151,19 @@ static int16_t           s_out_buf[48000 * 2 / 50 + 128];
  * nothing but refill the queue on a tight interval, fully decoupled from
  * rendering. The game-loop/timer pumps stay as harmless backups (AudioSDL_Tick
  * is mutex-guarded and no-ops once the queue is at target). */
+#ifdef SWOS_SDL_BUILD
 static SDL_Thread  *s_pump_thread;
 static volatile int s_pump_run;
 static int audio_pump_thread(void *unused);
 
-int AudioSDL_Init(int mono)
-{
-    s_audio_mono = mono ? 1 : 0;
-#if SWOS_AUDIO_DISABLED
-    /* Audio disabled at compile time — return success so platform init
-     * continues; s_audio_dev stays 0 and AudioSDL_Tick early-returns. */
-    return 0;
-#endif
-    s_mtx = SDL_CreateMutex();
-    /* SWOS_AUDIO_OFF: no device and no pump thread, for the rollback rig
-     * (docs/ROLLBACK.md), which needs every write to game memory to come from the
-     * game loop. Every entry point already copes with no device. */
-    if (SDL_getenv("SWOS_AUDIO_OFF"))
-        return 0;
+/* ---- AudioOut on SDL: its audio queue ---- */
+static SDL_AudioDeviceID s_sdl_dev;
 
-    SDL_AudioSpec want;
+int AudioOut_Open(int want_freq, int *got_freq)
+{
+    SDL_AudioSpec want, have;
     SDL_zero(want);
-    want.freq     = AUDIO_SAMPLE_RATE;
+    want.freq     = want_freq;
     want.format   = AUDIO_S16SYS;  /* 16-bit out: the RJP1 mix is 8-bit, but the
                                     * master-volume / fade scaling is applied in the
                                     * 8->16 conversion so it's lossless (no 8-bit
@@ -164,24 +176,72 @@ int AudioSDL_Init(int mono)
 
     /* Accept whatever freq the driver wants to give us so we aren't
      * dependent on exactly 44.1 kHz being available. AudioSDL_Tick uses
-     * `s_audio_spec.freq` to compute how many bytes to generate per
+     * the rate it gives to compute how many bytes to generate per
      * game tick, so a negotiated rate works transparently. */
-    s_audio_dev = SDL_OpenAudioDevice(NULL, 0, &want, &s_audio_spec,
-                                      SDL_AUDIO_ALLOW_FREQUENCY_CHANGE |
-                                      SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
-    if (s_audio_dev == 0) {
+    s_sdl_dev = SDL_OpenAudioDevice(NULL, 0, &want, &have,
+                                    SDL_AUDIO_ALLOW_FREQUENCY_CHANGE |
+                                    SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
+    if (s_sdl_dev == 0) {
         fprintf(stderr, "SDL_OpenAudioDevice: %s\n", SDL_GetError());
         return -1;
     }
+    *got_freq = have.freq;
+    return 0;
+}
+
+void AudioOut_Close(void)
+{
+    if (s_sdl_dev) {
+        SDL_PauseAudioDevice(s_sdl_dev, 1);
+        SDL_ClearQueuedAudio(s_sdl_dev);
+        SDL_CloseAudioDevice(s_sdl_dev);
+        s_sdl_dev = 0;
+    }
+}
+
+void     AudioOut_Pause(int on)   { if (s_sdl_dev) SDL_PauseAudioDevice(s_sdl_dev, on); }
+void     AudioOut_Clear(void)     { if (s_sdl_dev) SDL_ClearQueuedAudio(s_sdl_dev); }
+uint32_t AudioOut_Queued(void)    { return s_sdl_dev ? SDL_GetQueuedAudioSize(s_sdl_dev) : 0; }
+void     AudioOut_Queue(const int16_t *pcm, uint32_t bytes)
+{
+    if (s_sdl_dev)
+        SDL_QueueAudio(s_sdl_dev, pcm, bytes);
+}
+#endif
+
+int AudioSDL_Init(int mono)
+{
+    s_audio_mono = mono ? 1 : 0;
+#if SWOS_AUDIO_DISABLED
+    /* Audio disabled at compile time — return success so platform init
+     * continues; s_audio_dev stays 0 and AudioSDL_Tick early-returns. */
+    return 0;
+#endif
+#ifdef SWOS_SDL_BUILD
+    s_mtx = SDL_CreateMutex();
+#else
+    s_audio_ready = 1;
+#endif
+    /* SWOS_AUDIO_OFF: no device and no pump thread, for the rollback rig
+     * (docs/ROLLBACK.md), which needs every write to game memory to come from the
+     * game loop. Every entry point already copes with no device. */
+    if (getenv("SWOS_AUDIO_OFF"))
+        return 0;
+
+    if (AudioOut_Open(AUDIO_SAMPLE_RATE, &s_freq) != 0)
+        return -1;
+    if (s_freq <= 0)
+        s_freq = AUDIO_SAMPLE_RATE;
+    s_audio_dev = 1;
     s_master_volume = 0;
-    SDL_PauseAudioDevice(s_audio_dev, 0);
+    AudioOut_Pause(0);
 
     /* Start the dedicated pump so the queue stays full regardless of render load.
      * Single-threaded on WASM — AudioSDL_Tick is already called from
      * Platform_RenderFrame every frame, so the pump thread is redundant (and
      * pthreads on wasm need SharedArrayBuffer/COOP+COEP). */
+#if defined(SWOS_SDL_BUILD) && !defined(SWOS_WASM_BUILD)
     s_pump_run    = 1;
-#ifndef SWOS_WASM_BUILD
     s_pump_thread = SDL_CreateThread(audio_pump_thread, "swos-audio-pump", NULL);
 #endif
     return 0;
@@ -199,13 +259,14 @@ int AudioSDL_Init(int mono)
 void AudioSDL_PauseAndClear(void)
 {
     if (s_audio_dev) {
-        SDL_PauseAudioDevice(s_audio_dev, 1);
-        SDL_ClearQueuedAudio(s_audio_dev);
+        AudioOut_Pause(1);
+        AudioOut_Clear();
     }
 }
 
 void AudioSDL_Shutdown(void)
 {
+#ifdef SWOS_SDL_BUILD
     /* Stop the pump before tearing down the device so it can't queue onto a
      * closed device. */
     if (s_pump_thread) {
@@ -213,13 +274,16 @@ void AudioSDL_Shutdown(void)
         SDL_WaitThread(s_pump_thread, NULL);
         s_pump_thread = NULL;
     }
+#endif
     if (s_audio_dev) {
-        SDL_PauseAudioDevice(s_audio_dev, 1);
-        SDL_ClearQueuedAudio(s_audio_dev);
-        SDL_CloseAudioDevice(s_audio_dev);
+        AudioOut_Close();
         s_audio_dev = 0;
     }
+#ifdef SWOS_SDL_BUILD
     if (s_mtx) { SDL_DestroyMutex(s_mtx); s_mtx = NULL; }
+#else
+    s_audio_ready = 0;
+#endif
 }
 
 /* Produce audio and queue it into SDL. Called once per game tick
@@ -252,28 +316,28 @@ void AudioSDL_Tick(void)
 {
     if (!s_audio_dev) return;
 
-    const int freq = s_audio_spec.freq ? s_audio_spec.freq : AUDIO_SAMPLE_RATE;
+    const int freq = s_freq;
     const int samples_per_tick = (freq * 2) / 50;        /* int8 mix samples (stereo) per 50 Hz tick */
     if (samples_per_tick > (int)sizeof(s_mix_buf)) return;   /* safety */
-    const Uint32 out_bytes = (Uint32)samples_per_tick * 2;   /* S16 device bytes to queue */
+    const uint32_t out_bytes = (uint32_t)samples_per_tick * 2;   /* S16 device bytes to queue */
 
     /* Queue sizes are device (S16) bytes = 4 per stereo frame. */
-    Uint32 target_bytes = (Uint32)freq * 4 * QUEUE_TARGET_MS / 1000;
+    uint32_t target_bytes = (uint32_t)freq * 4 * QUEUE_TARGET_MS / 1000;
 
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
 
     /* Re-check the queue inside the lock — if the other thread just
      * topped it up, we're done. This is what prevents two threads from
      * both calling RJP1_HandleTick for the same tick (which would
      * double-step the song state). */
-    Uint32 queued_bytes = SDL_GetQueuedAudioSize(s_audio_dev);
+    uint32_t queued_bytes = AudioOut_Queued();
     if (queued_bytes >= target_bytes) {
-        SDL_UnlockMutex(s_mtx);
+        AUDIO_UNLOCK();
         return;
     }
 
     if (s_player_active) {
-        SDL_memset(s_mix_buf, 0, (size_t)samples_per_tick);
+        memset(s_mix_buf, 0, (size_t)samples_per_tick);
         RJP1_HandleTick(&s_player);
         if (s_loop_song && RJP1_IsFinished(&s_player)) {
             RJP1_StartSong(&s_player, s_loop_subsong);  /* loop: restart the song... */
@@ -296,14 +360,14 @@ void AudioSDL_Tick(void)
             }
         }
     } else {
-        SDL_memset(s_mix_buf, 0, (size_t)samples_per_tick);   /* silence */
+        memset(s_mix_buf, 0, (size_t)samples_per_tick);   /* silence */
     }
 
     /* SFX player — only ticks when music+sfx mixing routed SFX to its own player
      * (s_sfx_active). Idle otherwise, so the normal game (SFX in s_player) is
      * unchanged. No loop handling: the SFX bank is trigger-driven. */
     if (s_sfx_active) {
-        SDL_memset(s_sfx_mix_buf, 0, (size_t)samples_per_tick);
+        memset(s_sfx_mix_buf, 0, (size_t)samples_per_tick);
         RJP1_HandleTick(&s_sfx_player);
         RJP1_MixSamples(&s_sfx_player, freq, s_sfx_mix_buf, samples_per_tick);
         if (s_audio_mono) {
@@ -315,7 +379,7 @@ void AudioSDL_Tick(void)
             }
         }
     } else {
-        SDL_memset(s_sfx_mix_buf, 0, (size_t)samples_per_tick);
+        memset(s_sfx_mix_buf, 0, (size_t)samples_per_tick);
     }
 
     /* Up-convert the 8-bit mix to 16-bit, applying the master volume (0..64)
@@ -395,29 +459,31 @@ void AudioSDL_Tick(void)
 
     /* Enqueue inside the lock so a concurrent caller's queue re-check sees the
      * new size. SDL_QueueAudio is internally locked; nesting s_mtx is safe. */
-    SDL_QueueAudio(s_audio_dev, s_out_buf, out_bytes);
+    AudioOut_Queue(s_out_buf, out_bytes);
 
-#ifndef SWOS_WASM_BUILD
+#if defined(SWOS_SDL_BUILD) && !defined(SWOS_WASM_BUILD)
     /* If a long main-thread stall left us under target, top up with silence
      * rather than mixing multiple ticks (which would desync the fade tempo).
      * WASM does NOT do this — it would stutter, since the once-per-frame pump
      * regularly leaves us under target. Instead AudioSDL_Tick is called in a
      * loop (Platform_RenderFrame) so the queue fills with REAL ticks; the device
-     * drains at real time so the song tempo stays correct. */
-    queued_bytes = SDL_GetQueuedAudioSize(s_audio_dev);
+     * drains at real time so the song tempo stays correct. WarpOS does as WASM
+     * does (Platform_RenderFrame, platform_wos.c). */
+    queued_bytes = AudioOut_Queued();
     if (queued_bytes + out_bytes < target_bytes) {
-        SDL_memset(s_out_buf, 0, (size_t)out_bytes);
-        SDL_QueueAudio(s_audio_dev, s_out_buf, out_bytes);
+        memset(s_out_buf, 0, (size_t)out_bytes);
+        AudioOut_Queue(s_out_buf, out_bytes);
     }
 #endif
 
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
 
 /* Dedicated pump loop (see s_pump_thread). Polls faster than the queue drains so
  * an underrun never has time to form; AudioSDL_Tick's own target check stops it
  * from over-filling (it returns early once QUEUE_TARGET_MS is buffered). The 5 ms
  * sleep keeps CPU negligible — most wake-ups just see a full queue and return. */
+#ifdef SWOS_SDL_BUILD
 static int audio_pump_thread(void *unused)
 {
     (void)unused;
@@ -427,6 +493,7 @@ static int audio_pump_thread(void *unused)
     }
     return 0;
 }
+#endif
 
 /* ---- Public API for audio.c --------------------------------------- *
  *
@@ -442,7 +509,7 @@ int AudioSDL_StartSong(const uint8_t *song_data, int song_size,
     (void)song_data; (void)song_size; (void)ins_data; (void)ins_size; (void)subsong;
     return 0;
 #endif
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     DosMusic_Stop();
     MusicStream_Stop();
 
@@ -451,7 +518,7 @@ int AudioSDL_StartSong(const uint8_t *song_data, int song_size,
         fprintf(stderr, "[audio] RJP1_Load failed (song_size=%d ins_size=%d)\n",
                 song_size, ins_size);
         s_player_active = 0;
-        SDL_UnlockMutex(s_mtx);
+        AUDIO_UNLOCK();
         return -1;
     }
 
@@ -471,9 +538,9 @@ int AudioSDL_StartSong(const uint8_t *song_data, int song_size,
     /* Drop whatever stale audio was queued so the new song starts
      * immediately instead of after the previous song's residual buffer. */
     if (s_audio_dev)
-        SDL_ClearQueuedAudio(s_audio_dev);
+        AudioOut_Clear();
 
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
     return 0;
 }
 
@@ -482,14 +549,14 @@ void AudioSDL_StopSong(void)
 #if SWOS_AUDIO_DISABLED
     return;
 #endif
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     DosMusic_Stop();
     MusicStream_Stop();
     if (s_player_active)
         RJP1_StopAll(&s_player);
     s_player_active = 0;
     s_loop_song = 0;
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
 
 /* Start sound_dos/<name>.mp3 in place of an Amiga song. Returns 0 when it is playing,
@@ -501,9 +568,9 @@ int AudioSDL_StreamStart(const char *name, int loop)
     return -1;
 #endif
     int ok;
-    if (!s_audio_dev || !s_mtx)
+    if (!s_audio_dev || !AUDIO_READY())
         return -1;
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     DosMusic_Stop();
     ok = MusicStream_Start(name, loop);
     if (ok) {
@@ -511,9 +578,9 @@ int AudioSDL_StreamStart(const char *name, int loop)
             RJP1_StopAll(&s_player);
         s_player_active = 0;
         s_loop_song = 0;
-        SDL_ClearQueuedAudio(s_audio_dev);
+        AudioOut_Clear();
     }
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
     return ok ? 0 : -1;
 }
 
@@ -524,17 +591,17 @@ int AudioSDL_PcMusicStart(void)
 #if SWOS_AUDIO_DISABLED
     return -1;
 #endif
-    if (!s_audio_dev || !s_mtx || !DosMusic_Load())
+    if (!s_audio_dev || !AUDIO_READY() || !DosMusic_Load())
         return -1;
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     if (s_player_active)
         RJP1_StopAll(&s_player);
     s_player_active = 0;
     s_loop_song = 0;
     MusicStream_Stop();
     DosMusic_Start();
-    SDL_ClearQueuedAudio(s_audio_dev);
-    SDL_UnlockMutex(s_mtx);
+    AudioOut_Clear();
+    AUDIO_UNLOCK();
     return DosMusic_Playing() ? 0 : -1;
 }
 
@@ -547,9 +614,9 @@ void AudioSDL_SetSfxSecondPlayer(int on)
 #if SWOS_AUDIO_DISABLED
     (void)on; return;
 #endif
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     s_sfx_use_second = on ? 1 : 0;
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
 
 /* Stop + deactivate the dedicated SFX player (no effect on the music player). */
@@ -558,11 +625,11 @@ void AudioSDL_StopSfx(void)
 #if SWOS_AUDIO_DISABLED
     return;
 #endif
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     if (s_sfx_active)
         RJP1_StopAll(&s_sfx_player);
     s_sfx_active = 0;
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
 
 /* Every sound effect playing now stops, and the player stays ready for the next one --
@@ -574,10 +641,10 @@ void AudioSDL_SilenceSfx(void)
 #if SWOS_AUDIO_DISABLED
     return;
 #endif
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     if (sfx_act())
         RJP1_StopAll(sfx_tgt());
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
 
 /* Enable/disable auto-restart of the current song when it finishes. Used for the
@@ -588,14 +655,87 @@ void AudioSDL_SetSongLoop(int loop)
     (void)loop;
     return;
 #endif
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     s_loop_song = loop ? 1 : 0;
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
 
 /* Load a PCM .wav into the one-shot overlay slot, converted to the device format
  * (S16 stereo at the device rate). Replaces any previously-loaded overlay. Returns
  * 0 on success. */
+#ifndef SWOS_SDL_BUILD
+/* A PCM .wav (8-bit unsigned or 16-bit signed, mono or stereo, any rate) as S16
+ * stereo at the device's rate: SDL_LoadWAV + SDL_ConvertAudio, by hand. Nearest
+ * sample resampling -- it is a jingle. malloc'd; NULL on anything else. */
+static uint32_t le32(const uint8_t *p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24); }
+static uint16_t le16(const uint8_t *p) { return (uint16_t)(p[0] | (p[1] << 8)); }
+
+static int16_t *load_wav_s16_stereo(const char *path, int freq, int *out_samples)
+{
+    FILE *f = fopen(path, "rb");
+    uint8_t *file = NULL, *data = NULL;
+    long size;
+    uint32_t pos = 12, data_len = 0, rate = 0;
+    int channels = 0, bits = 0;
+    int16_t *out = NULL;
+
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size < 44 || !(file = (uint8_t *)malloc((size_t)size)) ||
+        fread(file, 1, (size_t)size, f) != (size_t)size) {
+        fclose(f);
+        free(file);
+        return NULL;
+    }
+    fclose(f);
+    if (memcmp(file, "RIFF", 4) || memcmp(file + 8, "WAVE", 4))
+        goto done;
+    while (pos + 8 <= (uint32_t)size) {
+        uint32_t len = le32(file + pos + 4);
+        if (!memcmp(file + pos, "fmt ", 4) && len >= 16) {
+            if (le16(file + pos + 8) != 1)          /* PCM only */
+                goto done;
+            channels = le16(file + pos + 10);
+            rate     = le32(file + pos + 12);
+            bits     = le16(file + pos + 22);
+        } else if (!memcmp(file + pos, "data", 4)) {
+            data = file + pos + 8;
+            data_len = len;
+            if (data + data_len > file + size)
+                data_len = (uint32_t)(file + size - data);
+        }
+        pos += 8 + len + (len & 1);
+    }
+    if (!data || !rate || (channels != 1 && channels != 2) || (bits != 8 && bits != 16))
+        goto done;
+    {
+        uint32_t in_frames = data_len / (uint32_t)(channels * bits / 8);
+        uint32_t frames = (uint32_t)((uint64_t)in_frames * (uint32_t)freq / rate), i;
+        out = (int16_t *)malloc((size_t)frames * 2 * sizeof(int16_t));
+        if (!out)
+            goto done;
+        for (i = 0; i < frames; i++) {
+            uint32_t at = (uint32_t)((uint64_t)i * rate / (uint32_t)freq);
+            int c;
+            for (c = 0; c < 2; c++) {
+                int src = channels == 2 ? c : 0, v;
+                if (bits == 8)
+                    v = ((int)data[at * channels + src] - 128) * 256;
+                else
+                    v = (int16_t)le16(data + (at * channels + src) * 2);
+                out[i * 2 + c] = (int16_t)v;
+            }
+        }
+        *out_samples = (int)(frames * 2);
+    }
+done:
+    free(file);
+    return out;
+}
+#endif
+
 int AudioSDL_LoadOverlaySample(const char *path)
 {
 #if SWOS_AUDIO_DISABLED
@@ -603,6 +743,7 @@ int AudioSDL_LoadOverlaySample(const char *path)
 #endif
     if (!s_audio_dev || !path) return -1;
 
+#ifdef SWOS_SDL_BUILD
     SDL_AudioSpec ws;
     Uint8 *wbuf = NULL;
     Uint32 wlen = 0;
@@ -612,7 +753,7 @@ int AudioSDL_LoadOverlaySample(const char *path)
     }
     SDL_AudioCVT cvt;
     int rc = SDL_BuildAudioCVT(&cvt, ws.format, ws.channels, ws.freq,
-                               AUDIO_S16SYS, 2, s_audio_spec.freq);
+                               AUDIO_S16SYS, 2, s_freq);
     if (rc < 0) {
         fprintf(stderr, "[audio] SDL_BuildAudioCVT(%s): %s\n", path, SDL_GetError());
         SDL_FreeWAV(wbuf);
@@ -625,13 +766,23 @@ int AudioSDL_LoadOverlaySample(const char *path)
     SDL_FreeWAV(wbuf);
     int conv_bytes = cvt.len;              /* rc==0: already device format */
     if (rc == 1) { SDL_ConvertAudio(&cvt); conv_bytes = cvt.len_cvt; }
+    int16_t *pcm = (int16_t *)cvt.buf;
+    int samples = conv_bytes / (int)sizeof(int16_t);
+#else
+    int samples = 0;
+    int16_t *pcm = load_wav_s16_stereo(path, s_freq, &samples);
+    if (!pcm) {
+        fprintf(stderr, "[audio] %s: not a PCM .wav this can read\n", path);
+        return -1;
+    }
+#endif
 
-    SDL_LockMutex(s_mtx);
-    if (s_ovl_pcm) SDL_free(s_ovl_pcm);
-    s_ovl_pcm = (int16_t *)cvt.buf;
-    s_ovl_len = conv_bytes / (int)sizeof(int16_t);
+    AUDIO_LOCK();
+    if (s_ovl_pcm) OVERLAY_FREE(s_ovl_pcm);
+    s_ovl_pcm = pcm;
+    s_ovl_len = samples;
     s_ovl_pos = -1;
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
     return 0;
 }
 
@@ -641,9 +792,9 @@ void AudioSDL_PlayOverlaySample(void)
 #if SWOS_AUDIO_DISABLED
     return;
 #endif
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     if (s_ovl_pcm) s_ovl_pos = 0;
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
 
 /* ---- PCM voices (the PC game's sounds, src/dos_sound.c) ---- */
@@ -669,12 +820,12 @@ static void pcm_play(int voice, const uint8_t *data, int is16, uint32_t len, int
     (void)voice; (void)data; (void)is16; (void)len; (void)rate; (void)volume; (void)loops;
     return;
 #endif
-    if (voice < 0 || voice >= PCM_VOICES || !s_audio_dev || !s_mtx)
+    if (voice < 0 || voice >= PCM_VOICES || !s_audio_dev || !AUDIO_READY())
         return;
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     s_pcm[voice].data = NULL;
     if (data && len) {
-        const int freq = s_audio_spec.freq ? s_audio_spec.freq : AUDIO_SAMPLE_RATE;
+        const int freq = s_freq;
         s_pcm[voice].len = len;
         s_pcm[voice].pos = 0;
         s_pcm[voice].step = (uint32_t)(((uint64_t)rate << 16) / (uint32_t)freq);
@@ -683,7 +834,7 @@ static void pcm_play(int voice, const uint8_t *data, int is16, uint32_t len, int
         s_pcm[voice].is16 = is16;
         s_pcm[voice].data = data;
     }
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
 
 void AudioSDL_PcmVolume(int voice, int volume)
@@ -696,13 +847,13 @@ void AudioSDL_PcmVolume(int voice, int volume)
 void AudioSDL_PcmStop(int voice)
 {
     int i;
-    if (!s_mtx)
+    if (!AUDIO_READY())
         return;
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     for (i = 0; i < PCM_VOICES; i++)
         if (voice < 0 || voice == i)
             s_pcm[i].data = NULL;
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
 
 int AudioSDL_PcmPlaying(int voice)
@@ -740,7 +891,7 @@ int AudioSDL_LoadSfxBank(const uint8_t *song_data, int song_size,
     (void)song_data; (void)song_size; (void)ins_data; (void)ins_size;
     return 0;
 #endif
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
 
     if (!s_sfx_use_second)
         MusicStream_Stop();
@@ -751,7 +902,7 @@ int AudioSDL_LoadSfxBank(const uint8_t *song_data, int song_size,
         fprintf(stderr, "[audio] SFX RJP1_Load failed (song_size=%d ins_size=%d)\n",
                 song_size, ins_size);
         sfx_set_act(0);
-        SDL_UnlockMutex(s_mtx);
+        AUDIO_UNLOCK();
         return -1;
     }
 
@@ -768,10 +919,10 @@ int AudioSDL_LoadSfxBank(const uint8_t *song_data, int song_size,
         /* Drop residual queued audio so the next mix tick starts clean. With the
          * 2nd player the music is mid-flight in the shared output queue — leave it. */
         if (s_audio_dev)
-            SDL_ClearQueuedAudio(s_audio_dev);
+            AudioOut_Clear();
     }
 
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
     return 0;
 }
 
@@ -789,10 +940,10 @@ void AudioSDL_TriggerSfxByNoteId(int channel, int note_id)
 #endif
     if (_gArcadeSfxSuppressed) return;
     SWOS_SFX_LOG_TRIGGER_NOTE(channel, note_id);
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     if (sfx_act())
         RJP1_StartSequenceByNoteId(sfx_tgt(), channel, note_id);
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
 
 /* Trigger an SFX by wave id (the Amiga AudioChannelQueueNextWaveIfEnabled
@@ -805,10 +956,10 @@ void AudioSDL_TriggerSfxByWaveId(int channel, int wave_id)
 #endif
     if (_gArcadeSfxSuppressed) return;
     SWOS_SFX_LOG_TRIGGER_WAVE(channel, wave_id);
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     if (sfx_act())
         RJP1_StartSequenceByWaveId(sfx_tgt(), channel, wave_id);
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
 
 /* A wave started on this channel is still running its script -- what the Amiga's audio
@@ -820,12 +971,12 @@ int AudioSDL_SfxChannelBusy(int channel)
     (void)channel;
     return 0;
 #endif
-    if (channel < 0 || channel >= RJP1_NUM_CHANNELS || !s_mtx)
+    if (channel < 0 || channel >= RJP1_NUM_CHANNELS || !AUDIO_READY())
         return 0;
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     if (sfx_act())
         busy = sfx_tgt()->channels[channel].active != 0;
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
     return busy;
 }
 
@@ -840,7 +991,7 @@ void AudioSDL_TriggerSfxPreset(int preset_id)
     return;
 #endif
     if (_gArcadeSfxSuppressed) return;
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     if (sfx_act()) {
         RJP1_Player *p = sfx_tgt();
         uint8_t note_ids[4];
@@ -853,7 +1004,7 @@ void AudioSDL_TriggerSfxPreset(int preset_id)
                 RJP1_StartSequenceByNoteId(p, ch, note_ids[ch]);
         }
     }
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
 
 void AudioSDL_SetMasterVolume(int vol_0_64)
@@ -882,8 +1033,8 @@ void AudioSDL_SetChannelVolume(int channel, int vol_0_64)
      * suppressed; suppress this volume path too. (Off during an arcade match,
      * where the chant is wanted.) */
     if (_gArcadeSfxSuppressed) return;
-    SDL_LockMutex(s_mtx);
+    AUDIO_LOCK();
     if (sfx_act())
         RJP1_SetChannelAttenuation(sfx_tgt(), channel, vol_0_64);
-    SDL_UnlockMutex(s_mtx);
+    AUDIO_UNLOCK();
 }
