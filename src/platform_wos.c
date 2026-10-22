@@ -763,7 +763,10 @@ static void wait_safe(int b)
 static void dbuf_open(void)
 {
     int i;
-    if (getenv("SWOS_NO_DBUF"))
+    /* Off unless SWOS_DBUF=1: on Picasso96 here (Sonnet, 2026-10-22) ChangeScreenBuffer
+     * itself blocked ~30 ms a frame in a scrolling match, half the frame rate; one
+     * buffer drawn while on screen ran a full 50 Hz. */
+    if (!getenv("SWOS_DBUF"))
         return;
     s_sb[0] = AllocScreenBuffer(s_screen, NULL, SB_SCREEN_BITMAP);
     s_sb[1] = AllocScreenBuffer(s_screen, NULL, SB_COPY_BITMAP);
