@@ -131,9 +131,16 @@ void InputWos_Key(uint16_t code, int repeat)
 
     if (down) {
         _keyState[akey] = 1;
-        /* Arrows reach keyState (some code polls it) but not the FIFO, so GetKey
-         * does not take them for menu hotkeys. */
-        if (!arrow && !repeat)
+        /* Outside a match the arrows go into the FIFO too, on the press AND on each
+         * of the keyboard's own repeats: the Amiga's keyboard interrupt put every
+         * key there, and MenuCheckControls takes an arrow from it whenever the
+         * stick logic (12 ticks, then one every 4) moved nothing that frame -- so
+         * holding an arrow runs the cursor at the keyboard's repeat rate, as on the
+         * original. In a match an arrow steers and nothing else (input_sdl.c keeps
+         * them out of the FIFO altogether). */
+        extern volatile uint16_t _playGame;       /* set while a match is played */
+        int in_match = _playGame != 0;
+        if (arrow ? !in_match : !repeat)
             push_key((uint8_t)akey);
         if (arrow && !repeat)
             kbd_arrow(akey, 1);
@@ -176,15 +183,24 @@ static uint16_t encode_joydat(int up, int down, int left, int right)
 
 /* lowlevel.library's port `port`, OR'd into the directions and buttons given.
  * A mouse, or nothing, in the port contributes nothing. */
+/* Each ReadJoyPort is a trip to the 68k side: a port is read every frame only
+ * while a joystick or pad answers in it, and looked at again once a second. */
+static int s_port_live[2];
+static int s_port_probe[2];
+
 static void read_port(ULONG port, int slot, int *up, int *down, int *left, int *right,
                       int *fire, int *skip)
 {
     ULONG s, type;
     if (!LowLevelBase)
         return;
+    if (!s_port_live[slot] && s_port_probe[slot]-- > 0)
+        return;
+    s_port_probe[slot] = 50;
     s = ReadJoyPort(port);
     type = s & JP_TYPE_MASK;
-    if (type != JP_TYPE_JOYSTK && type != JP_TYPE_GAMECTLR)
+    s_port_live[slot] = (type == JP_TYPE_JOYSTK || type == JP_TYPE_GAMECTLR);
+    if (!s_port_live[slot])
         return;
     if (s & JPF_JOY_UP)    *up = 1;
     if (s & JPF_JOY_DOWN)  *down = 1;

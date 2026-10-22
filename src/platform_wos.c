@@ -51,6 +51,9 @@
 #include <proto/intuition.h>
 #include <proto/graphics.h>
 #include <proto/cybergraphics.h>
+#include <libraries/asl.h>
+#include <dos/var.h>
+#include <proto/asl.h>
 #include <powerpc/powerpc.h>
 #include <powerpc/powerpc_protos.h>
 #pragma pack(pop)
@@ -60,6 +63,7 @@
 struct IntuitionBase *IntuitionBase;
 struct GfxBase       *GfxBase;
 struct Library       *CyberGfxBase;
+struct Library       *AslBase;
 extern struct Library *PowerPCBase;
 
 extern int _screen_width, _screen_height;
@@ -93,9 +97,29 @@ static int            s_win_scale = 1;
 /* The palette as LoadRGB32 last loaded it, and its XRGB8 mirror for the
  * WriteLUTPixelArray fallback -- kept together, so a mid-session demotion to
  * the fallback shows the right colours at once. */
-/* The frame as last copied to the card, to send only the rows that change. */
-static uint8_t s_shadow[672 * 272];
-static int     s_shadow_valid, s_shadow_w;
+/* Double buffering (Intuition's screen buffers): the frame goes into the buffer
+ * that is NOT on screen and ChangeScreenBuffer shows it at the next vertical
+ * blank, so a scroll never tears where the copy crosses the beam. A buffer is
+ * written again only after Intuition says it is off screen (its SafeMessage).
+ * Without screen buffers (the driver gives none) the frame goes into the one
+ * bitmap on screen, as before.
+ *
+ * Per buffer, the frame it holds, to send only the rows that differ: a buffer
+ * holds the frame before last, so a still menu copies nothing and a scrolling
+ * match all of it. */
+static struct ScreenBuffer *s_sb[2];
+static int                  s_no_safe_msgs;     /* no SafeMessage: none is waited for */
+static struct MsgPort      *s_safe_port;
+static int                  s_dbuf;             /* 1: the two buffers are in use */
+static int                  s_back;             /* the buffer to draw into */
+static int                  s_front = 0;        /* the buffer on screen */
+static int                  s_safe_pending[2];  /* flipped away, not yet safe to write */
+static uint8_t s_shadow[2][672 * 272];
+static void dbuf_open(void);
+static void dbuf_close(void);
+static void wait_safe(int b);
+static uint64_t now_us(void);
+static int     s_shadow_valid[2], s_shadow_w[2];
 
 static uint8_t s_rgb[768];
 static uint8_t s_rgb_loaded[768];
@@ -113,6 +137,8 @@ static int      s_present_stats = -1;
 static uint64_t s_st_work, s_st_events, s_st_audio, s_st_show, s_st_wait, s_st_last_end;
 static int32_t  s_st_n, s_st_late, s_st_palette;
 static uint32_t s_st_rows;
+static uint64_t s_st_flip, s_st_max_flip;   /* time inside ChangeScreenBuffer */
+static uint64_t s_st_max_gap, s_st_max_events, s_st_prev_t0, s_st_oversleep;
 
 /* ---- The program's drawer ------------------------------------------- */
 
@@ -245,20 +271,62 @@ static void bridge_log(const char *buf, int n)
     }
 }
 
-static int sync_log_write(void *cookie, const char *buf, int n)
+/* Each log line used to be a round trip to the bridge task and an open/append/
+ * close of SWOS.log -- several milliseconds -- and a tester build logs every menu
+ * move ([menu-nav]): holding an arrow cost 60 ms a frame (measured, 2026-10-22).
+ * So lines collect here and go to the file together: every 2 s from the frame
+ * loop (Platform_LogTick, after the frame is shown), when the buffer fills, and at
+ * exit. A crash loses at most the last two seconds. */
+static char     s_log_buf[32768];
+static int      s_log_len;
+static uint64_t s_log_flushed_us;
+
+static void log_flush(void)
 {
     FILE *f;
+    if (s_log_len == 0)
+        return;
+    if (s_log_path[0] && (f = fopen(s_log_path, "a")) != NULL) {
+        fwrite(s_log_buf, 1, (size_t)s_log_len, f);
+        fclose(f);
+    }
+    s_log_len = 0;
+}
+
+static int sync_log_write(void *cookie, const char *buf, int n)
+{
     (void)cookie;
     if (s_ab_msg)
         bridge_log(buf, n);
     if (!s_log_path[0])
         return n;
-    f = fopen(s_log_path, "a");
-    if (!f)
-        return n;                   /* nowhere to write it: drop it, never fail stderr */
-    fwrite(buf, 1, (size_t)n, f);
-    fclose(f);
+    if (s_log_len + n > (int)sizeof s_log_buf)
+        log_flush();
+    if (n > (int)sizeof s_log_buf) {        /* longer than the buffer: straight out */
+        FILE *f = fopen(s_log_path, "a");
+        if (f) {
+            fwrite(buf, 1, (size_t)n, f);
+            fclose(f);
+        }
+        return n;
+    }
+    memcpy(s_log_buf + s_log_len, buf, (size_t)n);
+    s_log_len += n;
     return n;
+}
+
+/* From the frame loop, once a frame: the buffered lines out every 2 s. */
+static uint64_t now_us(void);
+static void Platform_LogTick(void)
+{
+    uint64_t now;
+    if (s_log_len == 0)
+        return;
+    now = now_us();
+    if (now - s_log_flushed_us >= 2000000u) {
+        log_flush();
+        s_log_flushed_us = now;
+    }
 }
 
 /* path NULL: the bridge only (the first thing main() does). A path: that file too,
@@ -266,7 +334,14 @@ static int sync_log_write(void *cookie, const char *buf, int n)
 int Platform_OpenSyncLog(const char *path)
 {
     static FILE *s_log;
-    bridge_open();
+    static int s_atexit;
+    /* The bridge copy is a development aid: SWOS_LOG_BRIDGE=1 (ENV:) asks for it. */
+    if (getenv("SWOS_LOG_BRIDGE"))
+        bridge_open();
+    if (!s_atexit) {
+        atexit(log_flush);
+        s_atexit = 1;
+    }
     if (path) {
         FILE *f;
         snprintf(s_log_path, sizeof s_log_path, "%s", path);
@@ -303,24 +378,42 @@ uint64_t Platform_NowMs(void)
 /* ---- The Amiga's VBlank interrupt ------------------------------------ */
 
 static uint64_t s_last_isr_ms;
-
-/* As platform_sdl.c's, without the lock: there is one thread. Throttled to just
- * under a frame so a wait loop that calls it twice in a frame ticks once. */
+static uint64_t s_next_isr_us;
 static uint32_t s_isr_count, s_present_count;
 
+/* The Amiga's VBlank interrupt at the rate the game is paced at, by DEADLINE:
+ * as many ticks as are due since the last call, at most two (a stall is not made
+ * up in a burst). platform_sdl.c throttles instead -- no tick within 18 ms of the
+ * last -- which its timer thread, calling every 20 ms, makes exact; called from the
+ * frame loop, whose frames jitter around 20 ms, every short gap lost a tick and the
+ * game's clock ran at 40 Hz (measured, 2026-10-22): the whole game at 80% speed.
+ * One thread here, so no lock. */
 void RunInt3HandlerThrottled(void)
 {
-    const uint64_t thr = (uint64_t)(1000 / Platform_ActivePacingFps() - 2);
-    uint64_t now = Platform_NowMs();
-    if (now - s_last_isr_ms < thr)
+    const uint64_t period = 1000000u / (uint64_t)Platform_ActivePacingFps();
+    uint64_t now = now_us();
+    int ticks = 0;
+
+    if (s_next_isr_us == 0)
+        s_next_isr_us = now;
+    while (now >= s_next_isr_us && ticks < 2) {
+        s_next_isr_us += period;
+        ticks++;
+    }
+    if (now >= s_next_isr_us)
+        s_next_isr_us = now + period;       /* far behind: the schedule starts again */
+    if (ticks == 0)
         return;
-    s_last_isr_ms = now;
-    _Int3TimerHandler();
-    /* A heartbeat: alive, and whether frames are being shown or something waits
-     * on the clock alone (a fade, a delay). */
-    if (++s_isr_count % 500 == 0)
-        fprintf(stderr, "[wos] alive: %u interrupt ticks, %u frames shown, clock %lu ms\n",
-                (unsigned)s_isr_count, (unsigned)s_present_count, (unsigned long)now);
+    s_last_isr_ms = now / 1000u;
+    while (ticks-- > 0) {
+        _Int3TimerHandler();
+        /* A heartbeat: alive, and whether frames are being shown or something
+         * waits on the clock alone (a fade, a delay). */
+        if (++s_isr_count % 500 == 0)
+            fprintf(stderr, "[wos] alive: %u interrupt ticks, %u frames shown, clock %lu ms\n",
+                    (unsigned)s_isr_count, (unsigned)s_present_count,
+                    (unsigned long)(now / 1000u));
+    }
 }
 
 /* A wait that never leaves the PPC: powerpc.library's WaitTime, in microseconds. */
@@ -335,6 +428,8 @@ void Platform_ResumeTimerThread(void)  { }
 
 /* ---- Choosing a mode ------------------------------------------------- */
 
+static int rtg_mode_ok(ULONG id);
+
 /* An 8-bit RTG mode near w x h with room for the picture, or INVALID_ID. */
 static ULONG rtg_mode(int w, int h)
 {
@@ -346,24 +441,92 @@ static ULONG rtg_mode(int w, int h)
     tags[2].ti_Tag = CYBRBIDTG_Depth;         tags[2].ti_Data = 8UL;
     tags[3].ti_Tag = TAG_END;                 tags[3].ti_Data = 0UL;
     id = BestCModeIDTagList(tags);
+    return rtg_mode_ok(id) ? id : (ULONG)INVALID_ID;
+}
 
-    /* TRAP: when nothing matches this is a NATIVE chipset mode id. */
-    if (id == (ULONG)INVALID_ID)                       return (ULONG)INVALID_ID;
-    if (!IsCyberModeID(id))                            return (ULONG)INVALID_ID;
-    if (GetCyberIDAttr(CYBRIDATTR_DEPTH, id) != 8UL)   return (ULONG)INVALID_ID;
-    if (GetCyberIDAttr(CYBRIDATTR_BPPIX, id) != 1UL)   return (ULONG)INVALID_ID;
+/* An 8-bit RTG mode with room for the picture. BestCModeIDTagList answers a NATIVE
+ * chipset mode when nothing matches, and a mode from SWOS_SCREENMODE or the
+ * requester can be anything: every one is checked here. */
+static int rtg_mode_ok(ULONG id)
+{
+    if (id == (ULONG)INVALID_ID)                       return 0;
+    if (!IsCyberModeID(id))                            return 0;
+    if (GetCyberIDAttr(CYBRIDATTR_DEPTH, id) != 8UL)   return 0;
+    if (GetCyberIDAttr(CYBRIDATTR_BPPIX, id) != 1UL)   return 0;
     if ((int)GetCyberIDAttr(CYBRIDATTR_WIDTH, id)  < WOS_PICTURE_W ||
         (int)GetCyberIDAttr(CYBRIDATTR_HEIGHT, id) < WOS_PICTURE_H)
-        return (ULONG)INVALID_ID;
-    return id;
+        return 0;
+    return 1;
 }
+
 
 /* The mode ladder: the size SWOS.ini asks for ([video] resolution), then the
  * picture's own size -- a 336x272 or 352x288 mode a user made in Picasso96Mode
  * shows it 1:1 and full screen -- then the common sizes it fits in, centred.
  * Every step down says why. */
+/* The ASL screen-mode requester on the Workbench screen, 8-bit modes with room for
+ * the picture. INVALID_ID when cancelled or unusable. */
+static ULONG asl_pick_mode(void)
+{
+    struct ScreenModeRequester *req;
+    ULONG id = (ULONG)INVALID_ID;
+
+    AslBase = OpenLibrary((CONST_STRPTR)"asl.library", 38);
+    if (!AslBase) {
+        fprintf(stderr, "[video] no asl.library v38: no screen-mode requester\n");
+        return id;
+    }
+    req = (struct ScreenModeRequester *)AllocAslRequestTags(ASL_ScreenModeRequest,
+              ASLSM_TitleText, (ULONG)"OpenSWOS: screen mode (8-bit RTG)",
+              ASLSM_MinWidth,  (ULONG)WOS_PICTURE_W,
+              ASLSM_MinHeight, (ULONG)WOS_PICTURE_H,
+              ASLSM_MinDepth,  8UL,
+              ASLSM_MaxDepth,  8UL,
+              TAG_END);
+    if (req) {
+        if (AslRequestTags(req, TAG_END))
+            id = req->sm_DisplayID;
+        FreeAslRequest(req);
+    }
+    CloseLibrary(AslBase);
+    AslBase = NULL;
+    return id;
+}
+
+/* Remember a mode for the next start: ENVARC:SWOS_SCREENMODE (and ENV:). */
+static void save_mode(ULONG id)
+{
+    char buf[16];
+    snprintf(buf, sizeof buf, "0x%08lx", (unsigned long)id);
+    if (SetVar((CONST_STRPTR)"SWOS_SCREENMODE", (CONST_STRPTR)buf, -1,
+               GVF_GLOBAL_ONLY | GVF_SAVE_VAR))
+        fprintf(stderr, "[video] mode %s saved in ENVARC:SWOS_SCREENMODE\n", buf);
+}
+
 static ULONG choose_mode(const PlatformInitOptions *opts)
 {
+    /* SWOS_ASL=1: ask, and remember the answer. */
+    if (getenv("SWOS_ASL")) {
+        ULONG id = asl_pick_mode();
+        if (rtg_mode_ok(id)) {
+            save_mode(id);
+            return id;
+        }
+        if (id != (ULONG)INVALID_ID)
+            fprintf(stderr, "[video] mode $%08lx from the requester is not an 8-bit RTG mode "
+                            "with room for %dx%d\n", (unsigned long)id, WOS_PICTURE_W, WOS_PICTURE_H);
+    }
+    /* SWOS_SCREENMODE=0x...: that mode (the requester writes it). */
+    {
+        const char *v = getenv("SWOS_SCREENMODE");
+        if (v && v[0]) {
+            ULONG id = (ULONG)strtoul(v, NULL, 0);
+            if (rtg_mode_ok(id))
+                return id;
+            fprintf(stderr, "[video] SWOS_SCREENMODE %s is not an 8-bit RTG mode with room "
+                            "for %dx%d: the usual choice instead\n", v, WOS_PICTURE_W, WOS_PICTURE_H);
+        }
+    }
     static const int ladder[][2] = {
         { 336, 272 }, { 352, 288 }, { 400, 300 }, { 640, 480 }, { 640, 512 }, { 800, 600 },
     };
@@ -500,6 +663,7 @@ int Platform_Init(const PlatformInitOptions *opts)
     fprintf(stderr, "[wos] clearing the screen, probing the lock\n");
     SetRast(&s_screen->RastPort, 0);    /* the border is colour 0, as on the Amiga */
     probe_lock();
+    dbuf_open();
 
     fprintf(stderr, "[wos] input, audio\n");
     Platform_RewireCustom();
@@ -515,6 +679,7 @@ void Platform_Shutdown(void)
 {
     AudioSDL_Shutdown();
     InputWos_Shutdown();
+    dbuf_close();
     if (s_window) {
         if (s_blank_pointer)
             ClearPointer(s_window);
@@ -559,9 +724,102 @@ static void load_palette(void)
     s_palette_loaded = 1;
 }
 
+/* Wait until buffer b is off screen: Intuition replies its SafeMessage then --
+ * polled, never blocked on: the Picasso96 driver on the Sonnet sent none at all,
+ * and waiting for it froze the game on its second frame (2026-10-22). A flip shows
+ * at the next vertical blank, so 25 ms without the message means the buffer is off
+ * screen anyway; a driver that sends none is not waited for again. */
+static void wait_safe(int b)
+{
+    uint64_t start;
+    if (!s_safe_pending[b])
+        return;
+    if (s_no_safe_msgs) {
+        s_safe_pending[b] = 0;
+        return;
+    }
+    start = now_us();
+    while (s_safe_pending[b]) {
+        struct Message *m;
+        while ((m = GetMsg(s_safe_port)) != NULL) {
+            int i;
+            for (i = 0; i < 2; i++)
+                if (m == &s_sb[i]->sb_DBufInfo->dbi_SafeMessage)
+                    s_safe_pending[i] = 0;
+        }
+        if (!s_safe_pending[b])
+            break;
+        if (now_us() - start > 25000u) {
+            s_safe_pending[0] = s_safe_pending[1] = 0;
+            s_no_safe_msgs = 1;
+            fprintf(stderr, "[video] the driver sends no SafeMessage: flipping without "
+                            "waiting for it\n");
+            break;
+        }
+        WaitTime(0, 1000);
+    }
+}
+
+static void dbuf_open(void)
+{
+    int i;
+    if (getenv("SWOS_NO_DBUF"))
+        return;
+    s_sb[0] = AllocScreenBuffer(s_screen, NULL, SB_SCREEN_BITMAP);
+    s_sb[1] = AllocScreenBuffer(s_screen, NULL, SB_COPY_BITMAP);
+    s_safe_port = CreateMsgPort();
+    if (!s_sb[0] || !s_sb[1] || !s_safe_port) {
+        if (s_sb[1]) FreeScreenBuffer(s_screen, s_sb[1]);
+        if (s_sb[0]) FreeScreenBuffer(s_screen, s_sb[0]);
+        if (s_safe_port) DeleteMsgPort(s_safe_port);
+        s_sb[0] = s_sb[1] = NULL;
+        s_safe_port = NULL;
+        fprintf(stderr, "[video] no screen buffers from the driver: one buffer, "
+                        "drawn while it is on screen\n");
+        return;
+    }
+    /* No SafeMessage asked for, and none waited for: Picasso96 replies it a refresh
+     * or more after the flip, and waiting for it every frame halved the frame rate
+     * (2026-10-22). A flip shows at the next vertical blank -- at most a refresh,
+     * 10 ms at 100 Hz, 16.7 at 60 -- and a buffer is drawn into again only a frame
+     * (20 ms) after it was flipped away from, by when it is off screen. */
+    for (i = 0; i < 2; i++) {
+        s_sb[i]->sb_DBufInfo->dbi_SafeMessage.mn_ReplyPort = NULL;
+        s_sb[i]->sb_DBufInfo->dbi_DispMessage.mn_ReplyPort = NULL;
+    }
+    s_no_safe_msgs = 1;
+    s_dbuf = 1;
+    s_front = 0;
+    s_back = 1;
+    fprintf(stderr, "[video] double buffered: two screen buffers, flipped at the "
+                    "vertical blank\n");
+}
+
+static void dbuf_close(void)
+{
+    if (!s_dbuf)
+        return;
+    /* The screen's own bitmap back on screen before anything is freed. */
+    if (s_front != 0) {
+        wait_safe(0);
+        while (!ChangeScreenBuffer(s_screen, s_sb[0]))
+            WaitTime(0, 2000);
+        s_safe_pending[1] = 1;
+        s_front = 0;
+    }
+    wait_safe(0);
+    wait_safe(1);
+    FreeScreenBuffer(s_screen, s_sb[1]);
+    FreeScreenBuffer(s_screen, s_sb[0]);
+    DeleteMsgPort(s_safe_port);
+    s_sb[0] = s_sb[1] = NULL;
+    s_safe_port = NULL;
+    s_dbuf = 0;
+}
+
 /* The picture's rows into the screen at (dx, dy), under the lock. Returns 0 when
  * the lock gave nothing usable: the caller demotes to WriteLUTPixelArray. */
-static int blit_locked(const uint8_t *fb, int stride, int dx, int dy, int w, int h)
+static int blit_locked(struct BitMap *bm, const uint8_t *fb, int stride, int dx, int dy, int w, int h)
 {
     APTR  handle, base = NULL;
     ULONG bpr = 0, depth = 0, pixfmt = (ULONG)~0;
@@ -574,7 +832,7 @@ static int blit_locked(const uint8_t *fb, int stride, int dx, int dy, int w, int
     t[3].ti_Tag = LBMI_PIXFMT;      t[3].ti_Data = (ULONG)&pixfmt;
     t[4].ti_Tag = TAG_DONE;         t[4].ti_Data = 0UL;
 
-    handle = LockBitMapTagList((APTR)s_screen->RastPort.BitMap, t);
+    handle = LockBitMapTagList((APTR)bm, t);
     if (handle == NULL)
         return 0;
     /* ---- LOCK HELD: the copy only, no OS calls, no early return ---- */
@@ -612,55 +870,109 @@ void Platform_RenderFrame(void)
     dy = (s_mode_h - h) / 2;
 
     /* The picture changed size (the DOS view in a match): what it no longer
-     * covers goes back to the border colour. */
+     * covers goes back to the border colour -- in both buffers. */
     if (s_clear_borders || w != s_shown_w || h != s_shown_h) {
-        SetRast(&s_screen->RastPort, 0);
+        if (s_dbuf) {
+            int b;
+            for (b = 0; b < 2; b++) {
+                struct RastPort rp;
+                wait_safe(b);
+                InitRastPort(&rp);
+                rp.BitMap = s_sb[b]->sb_BitMap;
+                SetRast(&rp, 0);
+            }
+        } else {
+            SetRast(&s_screen->RastPort, 0);
+        }
         s_shown_w = w;
         s_shown_h = h;
         s_clear_borders = 0;
-        s_shadow_valid = 0;             /* the screen was cleared: every row again */
+        s_shadow_valid[0] = s_shadow_valid[1] = 0;  /* cleared: every row again */
     }
 
-    /* Only the rows that changed since the frame before: a menu that does not move
-     * costs nothing, a scrolling match the lot. The copy goes over the card's bus,
-     * the compare runs in the PPC's own memory. */
     {
+        int b = s_dbuf ? s_back : 0;
         int r0 = 0, r1 = h, r;
-        if (s_shadow_valid && w == s_shadow_w) {
-            while (r0 < h && memcmp(fb + (size_t)r0 * _screen_width, s_shadow + (size_t)r0 * w, (size_t)w) == 0)
+        struct BitMap *bm;
+
+        /* What is on screen already shows this frame: nothing to do. */
+        if (s_shadow_valid[s_front] && s_shadow_w[s_front] == w) {
+            const uint8_t *sh = s_shadow[s_front];
+            for (r = 0; r < h; r++)
+                if (memcmp(fb + (size_t)r * _screen_width, sh + (size_t)r * w, (size_t)w) != 0)
+                    break;
+            if (r == h)
+                return;
+        }
+        if (s_dbuf)
+            wait_safe(b);
+        /* The rows that differ from what this buffer holds. */
+        if (s_shadow_valid[b] && w == s_shadow_w[b]) {
+            const uint8_t *sh = s_shadow[b];
+            while (r0 < h && memcmp(fb + (size_t)r0 * _screen_width, sh + (size_t)r0 * w, (size_t)w) == 0)
                 r0++;
-            while (r1 > r0 && memcmp(fb + (size_t)(r1 - 1) * _screen_width, s_shadow + (size_t)(r1 - 1) * w, (size_t)w) == 0)
+            while (r1 > r0 && memcmp(fb + (size_t)(r1 - 1) * _screen_width, sh + (size_t)(r1 - 1) * w, (size_t)w) == 0)
                 r1--;
         }
-        if (r0 >= r1)
-            return;                     /* nothing changed */
         for (r = r0; r < r1; r++)
-            memcpy(s_shadow + (size_t)r * w, fb + (size_t)r * _screen_width, (size_t)w);
-        s_shadow_valid = 1;
-        s_shadow_w = w;
+            memcpy(s_shadow[b] + (size_t)r * w, fb + (size_t)r * _screen_width, (size_t)w);
+        s_shadow_valid[b] = 1;
+        s_shadow_w[b] = w;
         s_st_rows += (uint32_t)(r1 - r0);
+        bm = s_dbuf ? s_sb[b]->sb_BitMap : s_screen->RastPort.BitMap;
 
-        if (s_use_lock && !blit_locked(fb + (size_t)r0 * _screen_width, _screen_width,
-                                       dx, dy + r0, w, r1 - r0)) {
-            s_use_lock = 0;
-            fprintf(stderr, "[video] the lock stopped giving an 8-bit surface: "
-                            "WriteLUTPixelArray from now on\n");
+        if (r1 > r0) {
+            if (s_use_lock && !blit_locked(bm, fb + (size_t)r0 * _screen_width, _screen_width,
+                                           dx, dy + r0, w, r1 - r0)) {
+                s_use_lock = 0;
+                fprintf(stderr, "[video] the lock stopped giving an 8-bit surface: "
+                                "WriteLUTPixelArray from now on\n");
+            }
+            if (!s_use_lock) {
+                struct RastPort rp, *dst = &s_screen->RastPort;
+                if (s_dbuf) {
+                    InitRastPort(&rp);
+                    rp.BitMap = bm;
+                    dst = &rp;
+                }
+                WriteLUTPixelArray((APTR)fb, 0, (UWORD)r0, (UWORD)_screen_width,
+                                   dst, (APTR)s_ctable,
+                                   (UWORD)dx, (UWORD)(dy + r0), (UWORD)w, (UWORD)(r1 - r0),
+                                   (UBYTE)CTABFMT_XRGB8);
+            }
         }
-        if (!s_use_lock)
-            WriteLUTPixelArray((APTR)fb, 0, (UWORD)r0, (UWORD)_screen_width,
-                               &s_screen->RastPort, (APTR)s_ctable,
-                               (UWORD)dx, (UWORD)(dy + r0), (UWORD)w, (UWORD)(r1 - r0),
-                               (UBYTE)CTABFMT_XRGB8);
+
+        if (s_dbuf) {
+            /* Show it at the next vertical blank. Busy (a flip still pending): the
+             * frame stays in this buffer and goes up with the next one. */
+            uint64_t f0 = now_us(), fd;
+            ULONG ok = ChangeScreenBuffer(s_screen, s_sb[b]);
+            fd = now_us() - f0;
+            s_st_flip += fd;
+            if (fd > s_st_max_flip)
+                s_st_max_flip = fd;
+            if (ok) {
+                s_safe_pending[s_front] = 1;    /* the old one, once it is off screen */
+                s_front = b;
+                s_back = 1 - b;
+            }
+        } else {
+            s_front = 0;
+        }
     }
 }
 
 /* ---- The event loop and the pace ------------------------------------- */
 
+/* One 68k call when nothing happened: SetSignal reads the window port's signal and
+ * CTRL-C together, and the port is drained only when its signal says so. */
 static void pump_events(void)
 {
     struct IntuiMessage *msg;
+    ULONG port_sig = s_window ? (1UL << s_window->UserPort->mp_SigBit) : 0;
+    ULONG sigs = SetSignal(0L, port_sig | SIGBREAKF_CTRL_C);   /* read and clear both */
 
-    if (s_window) {
+    if (sigs & port_sig) {
         while ((msg = (struct IntuiMessage *)GetMsg(s_window->UserPort)) != NULL) {
             ULONG cls = msg->Class;
             UWORD code = msg->Code, qual = msg->Qualifier;
@@ -670,12 +982,16 @@ static void pump_events(void)
         }
     }
     /* CTRL-C from the Shell that started it: quit, as closing the window does. */
-    if (SetSignal(0L, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
+    if (sigs & SIGBREAKF_CTRL_C)
         Platform_RequestQuit();
     InputWos_PostFrame();
 }
 
-#define WAIT_SPIN_US 1500
+/* WaitTime wakes on a coarse tick: measured on the Sonnet it came back 9 ms late on
+ * average (2026-10-22), so a 6 ms wait cost 15 and a quarter of the frames missed
+ * their slot. It is used only for what can stand to be up to WAIT_SPIN_US late;
+ * the rest is a spin on the PPC timebase, which takes nothing from the 68k. */
+#define WAIT_SPIN_US 11000
 
 static uint64_t s_next_frame_us;
 static int      s_catchup_frames = 1;
@@ -699,8 +1015,13 @@ static void pace(void)
         /* WaitTime comes back late by up to a scheduler slice: sleep to within
          * WAIT_SPIN_US of the slot, then spin on the timebase, which costs the 68k
          * nothing. Measured before this: 70 of 250 frames late. */
-        if (wait > WAIT_SPIN_US)
-            WaitTime(0, (ULONG)(wait - WAIT_SPIN_US));
+        if (wait > WAIT_SPIN_US) {
+            uint64_t asked = wait - WAIT_SPIN_US, t = now_us(), slept;
+            WaitTime(0, (ULONG)asked);
+            slept = now_us() - t;
+            if (slept > asked)
+                s_st_oversleep += slept - asked;
+        }
         while (now_us() < s_next_frame_us)
             ;
         s_st_wait += wait;
@@ -725,18 +1046,29 @@ static void present_stats(uint64_t t0, uint64_t ta, uint64_t t1, uint64_t t2)
 {
     if (s_st_last_end)
         s_st_work += t0 - s_st_last_end;
+    if (s_st_prev_t0 && t0 - s_st_prev_t0 > s_st_max_gap)
+        s_st_max_gap = t0 - s_st_prev_t0;
+    s_st_prev_t0 = t0;
+    if (ta - t0 > s_st_max_events)
+        s_st_max_events = ta - t0;
     s_st_events += ta - t0;
     s_st_audio += t1 - ta;
     s_st_show += t2 - t1;
     if (++s_st_n >= 250) {
         double n = (double)s_st_n;
         fprintf(stderr, "[present] per frame: work %.2f ms, events %.2f ms, audio %.2f ms, "
-                        "show %.2f ms (%.0f rows), wait %.2f ms (target %.2f ms at %d Hz); "
-                        "%d late, %d palette loads of %d frames\n",
+                        "show %.2f ms (%.0f rows), wait %.2f ms\n",
                 s_st_work / n / 1000.0, s_st_events / n / 1000.0, s_st_audio / n / 1000.0,
-                s_st_show / n / 1000.0, s_st_rows / n,
-                s_st_wait / n / 1000.0, 1000.0 / Platform_ActivePacingFps(),
-                Platform_ActivePacingFps(), s_st_late, s_st_palette, s_st_n);
+                s_st_show / n / 1000.0, s_st_rows / n, s_st_wait / n / 1000.0);
+        fprintf(stderr, "[present] %d late of %d at %d Hz, %d palette loads; slowest frame "
+                        "%.1f ms, slowest events %.1f ms; WaitTime overslept %.2f ms a frame; "
+                        "flip %.2f ms (slowest %.1f)\n",
+                s_st_late, s_st_n, Platform_ActivePacingFps(), s_st_palette,
+                s_st_max_gap / 1000.0, s_st_max_events / 1000.0, s_st_oversleep / n / 1000.0,
+                s_st_flip / n / 1000.0, s_st_max_flip / 1000.0);
+        s_st_flip = s_st_max_flip = 0;
+        s_st_oversleep = 0;
+        s_st_max_gap = s_st_max_events = 0;
         s_st_work = s_st_events = s_st_audio = s_st_show = s_st_wait = 0;
         s_st_n = s_st_late = s_st_palette = 0;
         s_st_rows = 0;
@@ -773,6 +1105,7 @@ int Platform_Present(void)
         t2 = now_us();
         present_stats(t0, ta, t1, t2);
     }
+    Platform_LogTick();
     pace();
     if (s_present_stats)
         s_st_last_end = now_us();
