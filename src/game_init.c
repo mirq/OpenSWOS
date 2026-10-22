@@ -758,6 +758,17 @@ void SetupPlayers(TeamFileEx *team1, TeamFileEx *team2, int16_t maxSubs,
         }
     }
     {
+        /* SWOS_AUTO_MATCH: computer against computer, no prompts (auto_match.c). */
+        extern int  AutoMatch_Armed(void);
+        extern void AutoMatch_SetupPlayers(TeamFileEx *t1, TeamFileEx *t2);
+        if (AutoMatch_Armed()) {
+            _careerTeamCoachOnly = 0;
+            AutoMatch_SetupPlayers(team1, team2);
+            (void)maxSubs; (void)excludeFlags; (void)allowSquadChanges; (void)mode; (void)d0;
+            return;
+        }
+    }
+    {
         /* A LIVE netplay match: both teams are human, one of them on the other
          * machine, so there is nobody here to answer a prompt -- and a menu
          * that waits for input would never return, leaving GGPO's socket

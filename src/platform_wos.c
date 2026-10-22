@@ -110,6 +110,8 @@ static int            s_win_scale = 1;
 static struct ScreenBuffer *s_sb[2];
 static int                  s_no_safe_msgs;     /* no SafeMessage: none is waited for */
 static uint64_t             s_disp_period_us;   /* the display's refresh, from timed flips */
+static uint64_t             s_flip_cost_us;     /* the cheapest flip off the vertical blank */
+static uint64_t             s_vblank_us;        /* a moment a flip returned: a vertical blank */
 static int                  s_flipped;          /* this frame went up with a flip */
 static int                  s_locked;           /* the last frame was paced by its flip */
 static struct MsgPort      *s_safe_port;
@@ -119,10 +121,43 @@ static int                  s_front = 0;        /* the buffer on screen */
 static int                  s_safe_pending[2];  /* flipped away, not yet safe to write */
 static uint8_t s_shadow[2][672 * 272];
 static void dbuf_open(void);
+static int getenv_no_vsync(void)
+{
+    static int v = -1;
+    if (v < 0)
+        v = getenv("SWOS_NO_VSYNC") != NULL;
+    return v;
+}
+/* Where a bitmap's pixels are, from a lock (0 when it gives none). */
+static ULONG bitmap_base(struct BitMap *bm)
+{
+    ULONG base = 0;
+    struct TagItem t[2];
+    APTR h;
+    t[0].ti_Tag = LBMI_BASEADDRESS; t[0].ti_Data = (ULONG)&base;
+    t[1].ti_Tag = TAG_DONE;         t[1].ti_Data = 0;
+    h = LockBitMapTagList((APTR)bm, t);
+    if (!h)
+        return 0;
+    UnLockBitMap(h);
+    return base;
+}
 /* The display's refresh is within 4% of `period`: its flips can pace the frames. */
 static int display_paces(uint64_t period)
 {
     return s_disp_period_us > period - period / 25 && s_disp_period_us < period + period / 25;
+}
+
+/* The frame period. The display's own refresh when it is the game's rate: the game
+ * made at 50.0 Hz on a 50.7 Hz display (measured, 2026-10-22) showed a frame twice
+ * every 1.4 s -- a regular hitch. A refresh that is not the game's keeps the game's
+ * rate (a 100 Hz mode shows each frame twice, evenly). */
+static uint64_t frame_period_us(void)
+{
+    uint64_t period = 1000000u / (uint64_t)Platform_ActivePacingFps();
+    if (!getenv_no_vsync() && display_paces(period))
+        return s_disp_period_us;
+    return period;
 }
 static void vsync_probe(void);
 static void dbuf_close(void);
@@ -147,6 +182,7 @@ static uint64_t s_st_work, s_st_events, s_st_audio, s_st_show, s_st_wait, s_st_l
 static int32_t  s_st_n, s_st_late, s_st_palette;
 static uint32_t s_st_rows;
 static uint64_t s_st_flip, s_st_max_flip;   /* time inside ChangeScreenBuffer */
+static uint32_t s_st_flips, s_st_refused, s_st_same, s_st_locked;
 static uint64_t s_st_max_gap, s_st_max_events, s_st_prev_t0, s_st_oversleep;
 
 /* ---- The program's drawer ------------------------------------------- */
@@ -399,7 +435,7 @@ static uint32_t s_isr_count, s_present_count;
  * One thread here, so no lock. */
 void RunInt3HandlerThrottled(void)
 {
-    const uint64_t period = 1000000u / (uint64_t)Platform_ActivePacingFps();
+    const uint64_t period = frame_period_us();
     uint64_t now = now_us();
     int ticks = 0;
 
@@ -893,17 +929,60 @@ static void dbuf_open(void)
         for (j = 1; j < N - 1; j++)
             for (k = j; k > 0 && d[k] < d[k - 1]; k--)
                 x = d[k], d[k] = d[k - 1], d[k - 1] = x;
-        s_disp_period_us = d[(N - 1) / 2];
+        /* then each interval as a whole number of refreshes, for the mean */
+        {
+            uint64_t med = d[(N - 1) / 2], sum = 0, n = 0;
+            for (j = 0; j < N - 1; j++) {
+                uint64_t r = (t[j + 1] - t[j] + med / 2) / med;
+                if (r == 0)
+                    continue;
+                sum += t[j + 1] - t[j];
+                n += r;
+            }
+            s_disp_period_us = n ? sum / n : med;
+        }
     }
-    if (!getenv("SWOS_DBUF") && !display_paces(1000000u / 50u)) {
+    /* What one flip costs on its own, at different points of the refresh: a flip
+     * that only waits for the vertical blank costs anything from 0 to a refresh,
+     * one the driver does in software (copying the bitmap) always costs the copy.
+     * Measured here (Sonnet, 640x480, 2026-10-22): every flip 21-36 ms, even one
+     * every five seconds in a menu -- double buffering then costs a frame. */
+    {
+        uint64_t mn = ~(uint64_t)0, t0;
+        int j;
+        for (j = 0; j < 8; j++) {
+            WaitTime(0, 3000 + 2300 * (ULONG)j);
+            t0 = now_us();
+            ChangeScreenBuffer(s_screen, s_sb[(j + 1) & 1]);
+            t0 = now_us() - t0;
+            if (t0 < mn)
+                mn = t0;
+        }
+        while (!ChangeScreenBuffer(s_screen, s_sb[0]))
+            WaitTime(0, 2000);
+        s_vblank_us = now_us();
+        WaitTime(0, 30000);
+        s_flip_cost_us = mn;
+        fprintf(stderr, "[video] screen buffers at $%08lx and $%08lx (the screen's $%08lx); "
+                        "the cheapest of 8 flips %lu us\n",
+                (unsigned long)bitmap_base(s_sb[0]->sb_BitMap),
+                (unsigned long)bitmap_base(s_sb[1]->sb_BitMap),
+                (unsigned long)bitmap_base(s_screen->RastPort.BitMap), (unsigned long)mn);
+    }
+    if (!getenv("SWOS_DBUF") && (s_flip_cost_us > 4000 || !display_paces(1000000u / 50u))) {
         FreeScreenBuffer(s_screen, s_sb[1]);
         FreeScreenBuffer(s_screen, s_sb[0]);
         DeleteMsgPort(s_safe_port);
         s_sb[0] = s_sb[1] = NULL;
         s_safe_port = NULL;
-        fprintf(stderr, "[video] display refresh %lu us (%.1f Hz), not the game's 50: one "
-                        "buffer, paced by the timer (a 50 or 100 Hz mode looks smoothest)\n",
-                (unsigned long)s_disp_period_us, 1e6 / (double)s_disp_period_us);
+        if (s_flip_cost_us > 4000)
+            fprintf(stderr, "[video] a flip costs %lu us even off the vertical blank (the "
+                            "driver copies?): one buffer, paced by the timer\n",
+                    (unsigned long)s_flip_cost_us);
+        else
+            fprintf(stderr, "[video] display refresh %lu us (%.1f Hz), not the game's 50: one "
+                            "buffer, paced by the timer (a 50 or 100 Hz mode looks smoothest)\n",
+                    (unsigned long)s_disp_period_us, 1e6 / (double)s_disp_period_us);
         return;
     }
     s_dbuf = 1;
@@ -1020,8 +1099,10 @@ void Platform_RenderFrame(void)
             for (r = 0; r < h; r++)
                 if (memcmp(fb + (size_t)r * _screen_width, sh + (size_t)r * w, (size_t)w) != 0)
                     break;
-            if (r == h)
+            if (r == h) {
+                s_st_same++;
                 return;
+            }
         }
         if (s_dbuf)
             wait_safe(b);
@@ -1070,7 +1151,10 @@ void Platform_RenderFrame(void)
             s_st_flip += fd;
             if (fd > s_st_max_flip)
                 s_st_max_flip = fd;
+            if (!ok)
+                s_st_refused++;
             if (ok) {
+                s_st_flips++;
                 s_flipped = 1;
                 s_safe_pending[s_front] = 1;    /* the old one, once it is off screen */
                 s_front = b;
@@ -1111,7 +1195,9 @@ static void pump_events(void)
  * average (2026-10-22), so a 6 ms wait cost 15 and a quarter of the frames missed
  * their slot. It is used only for what can stand to be up to WAIT_SPIN_US late;
  * the rest is a spin on the PPC timebase, which takes nothing from the 68k. */
-#define WAIT_SPIN_US 11000
+/* WaitTime(3 ms) came back 16 ms later in a menu (overslept 13 ms a frame,
+ * 2026-10-22): within a frame only a spin is on time. */
+#define WAIT_SPIN_US 21000
 
 static uint64_t s_next_frame_us;
 static int      s_catchup_frames = 1;
@@ -1122,7 +1208,7 @@ static int      s_catchup_frames = 1;
  * backlog is dropped rather than run back to back (platform_sdl.c says why). */
 static void pace(void)
 {
-    uint64_t period = 1000000u / (uint64_t)Platform_ActivePacingFps();
+    uint64_t period = frame_period_us();
     uint64_t now = now_us();
 
     /* Paced by the display: the flip already waited for the vertical blank. The
@@ -1130,14 +1216,28 @@ static void pace(void)
     s_locked = s_flipped && display_paces(period);
     s_flipped = 0;
     if (s_locked) {
+        s_st_locked++;
         if (s_next_frame_us && now > s_next_frame_us + period + period / 2)
             s_st_late++;
         s_next_frame_us = now;
         return;
     }
 
-    if (s_next_frame_us == 0)
+    if (s_next_frame_us == 0) {
         s_next_frame_us = now;
+        /* Frames that follow the display start just after a vertical blank: the
+         * copy (~3 ms) then runs ahead of the beam, which reaches the picture's top
+         * row 4 ms into the refresh at 640x480. SWOS_VSYNC_PHASE_US moves it. */
+        if (s_vblank_us && period == s_disp_period_us && now > s_vblank_us) {
+            const char *ph = getenv("SWOS_VSYNC_PHASE_US");
+            uint64_t phase = ph ? (uint64_t)strtoul(ph, NULL, 0) % period : 0;
+            s_next_frame_us = s_vblank_us + phase +
+                              ((now - s_vblank_us) / period) * period;
+            fprintf(stderr, "[video] frames follow the display: %lu us apart, phase %lu us "
+                            "after the vertical blank\n", (unsigned long)period,
+                    (unsigned long)phase);
+        }
+    }
     s_next_frame_us += period;
     if (s_next_frame_us > now) {
         uint64_t wait = s_next_frame_us - now;
@@ -1159,7 +1259,7 @@ static void pace(void)
     } else {
         s_st_late++;
         if (now - s_next_frame_us > period * (uint64_t)s_catchup_frames)
-            s_next_frame_us = now;
+            s_next_frame_us += ((now - s_next_frame_us) / period) * period;  /* in phase */
     }
 }
 
@@ -1193,10 +1293,14 @@ static void present_stats(uint64_t t0, uint64_t ta, uint64_t t1, uint64_t t2)
                 s_st_show / n / 1000.0, s_st_rows / n, s_st_wait / n / 1000.0);
         fprintf(stderr, "[present] %d late of %d at %d Hz, %d palette loads; slowest frame "
                         "%.1f ms, slowest events %.1f ms; WaitTime overslept %.2f ms a frame; "
-                        "flip %.2f ms (slowest %.1f)\n",
+                        "flip %.2f ms (slowest %.1f); %u flips, %u refused, %u unchanged, "
+                        "%u display-paced\n",
                 s_st_late, s_st_n, Platform_ActivePacingFps(), s_st_palette,
                 s_st_max_gap / 1000.0, s_st_max_events / 1000.0, s_st_oversleep / n / 1000.0,
-                s_st_flip / n / 1000.0, s_st_max_flip / 1000.0);
+                s_st_flip / n / 1000.0, s_st_max_flip / 1000.0,
+                (unsigned)s_st_flips, (unsigned)s_st_refused, (unsigned)s_st_same,
+                (unsigned)s_st_locked);
+        s_st_flips = s_st_refused = s_st_same = s_st_locked = 0;
         s_st_flip = s_st_max_flip = 0;
         s_st_oversleep = 0;
         s_st_max_gap = s_st_max_events = 0;

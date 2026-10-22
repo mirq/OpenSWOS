@@ -264,7 +264,8 @@ void mainC(void)
          * one fire is pressed on becomes player 1 (input_sdl.c). */
         extern int _gArcadeMode;
         extern void InputSDL_SetIntroClaim(int on);
-        if (!_gArcadeMode) {
+        extern int AutoMatch_Armed(void);
+        if (!_gArcadeMode && !AutoMatch_Armed()) {
             InputSDL_SetIntroClaim(1);
             ShowLoaderIntroSequence();
             { extern void LoaderIntro_Done(void); LoaderIntro_Done(); }
@@ -286,6 +287,8 @@ void mainC(void)
     /* ---- Phase 5: Show title screens (skipped in arcade mode) ---- */
 #ifdef SWOS_CHUNKY_BUILD
     { extern int _gArcadeMode; if (_gArcadeMode) goto skip_title_screens; }
+    /* SWOS_AUTO_MATCH: nobody to press a key through them (auto_match.c). */
+    { extern int AutoMatch_Armed(void); if (AutoMatch_Armed()) goto skip_title_screens; }
     /* No Amiga disk screens installed (main.c). */
     { extern int _gNoAmigaScreens; if (_gNoAmigaScreens) goto skip_title_screens; }
 #endif
@@ -388,6 +391,14 @@ skip_title_screens: ;
         }
         if (ReplayTest_Armed()) {
             ReplayTest_Run();   /* replays a recording, then exits the process */
+            return;
+        }
+    }
+    {
+        extern int  AutoMatch_Armed(void);
+        extern void AutoMatch_Run(void);
+        if (AutoMatch_Armed()) {
+            AutoMatch_Run();    /* computer against computer, then back to quit */
             return;
         }
     }
