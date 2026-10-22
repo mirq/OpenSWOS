@@ -32,6 +32,8 @@
 #include <libraries/lowlevel.h>
 #include <proto/exec.h>
 #include <proto/lowlevel.h>
+#include <powerpc/powerpc.h>
+#include <powerpc/powerpc_protos.h>
 #pragma pack(pop)
 
 struct Library *LowLevelBase;
@@ -184,7 +186,10 @@ static uint16_t encode_joydat(int up, int down, int left, int right)
 /* lowlevel.library's port `port`, OR'd into the directions and buttons given.
  * A mouse, or nothing, in the port contributes nothing. */
 /* Each ReadJoyPort is a trip to the 68k side: a port is read every frame only
- * while a joystick or pad answers in it, and looked at again once a second. */
+ * while a joystick or pad answers in it, and an empty one looked at again once a
+ * second -- but not during a match, where asking an empty port cost a 7-14 ms
+ * frame once a second (a stutter, 2026-10-22). A stick plugged in mid-match
+ * answers from the next menu on. */
 static int s_port_live[2];
 static int s_port_probe[2];
 
@@ -194,10 +199,23 @@ static void read_port(ULONG port, int slot, int *up, int *down, int *left, int *
     ULONG s, type;
     if (!LowLevelBase)
         return;
-    if (!s_port_live[slot] && s_port_probe[slot]-- > 0)
-        return;
+    if (!s_port_live[slot]) {
+        extern volatile uint16_t _playGame;
+        if (_playGame != 0 || s_port_probe[slot]-- > 0)
+            return;
+    }
     s_port_probe[slot] = 50;
-    s = ReadJoyPort(port);
+    {
+        struct timeval t0, t1;
+        int32_t us;
+        GetSysTimePPC(&t0);
+        s = ReadJoyPort(port);
+        GetSysTimePPC(&t1);
+        us = (int32_t)(t1.tv_secs - t0.tv_secs) * 1000000 + (int32_t)t1.tv_micro - (int32_t)t0.tv_micro;
+        if (us > 3000)
+            fprintf(stderr, "[joy] ReadJoyPort(%lu) took %ld us (type $%08lx)\n",
+                    (unsigned long)port, (long)us, (unsigned long)(s & JP_TYPE_MASK));
+    }
     type = s & JP_TYPE_MASK;
     s_port_live[slot] = (type == JP_TYPE_JOYSTK || type == JP_TYPE_GAMECTLR);
     if (!s_port_live[slot])
