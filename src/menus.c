@@ -2366,7 +2366,7 @@ __attribute__((used, externally_visible))
 void SWOSMainMenuInit(void)
 {
     CommonMenuExit();
-#ifdef SWOS_WARPOS_BUILD
+#ifdef SWOS_AMIGA_RTG_BUILD
     /* No online play in this build (src/netplay_offline.c): MULTIPLAYER would be a
      * button that does nothing. Found by its handler, not by number. */
     {

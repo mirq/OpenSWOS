@@ -251,6 +251,10 @@ static void drawPatternFromIndex(uint16_t patternIndex)
 #endif
 
     /* draw to frontbuffer */
+#ifdef SWOS_CHUNKY_BUILD
+    { extern void Render_MarkRect(int x, int y, int w, int h);       /* platform_sdl.h */
+      Render_MarkRect(screenX, screenY, 16, 16); }   /* padded by the reader */
+#endif
     DrawSprite16Pixels(137, screenX, screenY);
 
     /* draw to mask buffer (swap frontbuffer ptr temporarily). The

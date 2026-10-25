@@ -166,4 +166,38 @@ void Platform_FramePalette(uint8_t *rgb)
 #endif
 }
 
+/* ---- Where the frame drew on top of the pitch ----------------------------
+ * Render_MarkRect (platform_sdl.h). A bounded list a frame: a backend that reads
+ * it clears it after each present; one that never does just leaves it full,
+ * marked overflowed, at no cost. */
+static int16_t s_marks[RENDER_MAX_MARKS][4];
+static int     s_numMarks, s_marksOverflow;
+
+void Render_MarkRect(int x, int y, int w, int h)
+{
+    Pitch_EnsureRect(x, y, w, h);       /* the grass under it, before it is drawn */
+    if (s_numMarks >= RENDER_MAX_MARKS) {
+        s_marksOverflow = 1;
+        return;
+    }
+    s_marks[s_numMarks][0] = (int16_t)x;
+    s_marks[s_numMarks][1] = (int16_t)y;
+    s_marks[s_numMarks][2] = (int16_t)w;
+    s_marks[s_numMarks][3] = (int16_t)h;
+    s_numMarks++;
+}
+
+int Render_Marks(const int16_t (**marks)[4], int *overflow)
+{
+    *marks = (const int16_t (*)[4])s_marks;
+    *overflow = s_marksOverflow;
+    return s_numMarks;
+}
+
+void Render_ClearMarks(void)
+{
+    s_numMarks = 0;
+    s_marksOverflow = 0;
+}
+
 #endif /* SWOS_CHUNKY_BUILD */

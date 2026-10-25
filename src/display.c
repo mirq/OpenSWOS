@@ -15,7 +15,7 @@
  * the decomposed write triggers the blit mid-update with a half-formed
  * size — fill/copy operations either do nothing or write garbage.
  * Same macros as in blitter.c / sprites.c / scroll_blit.c.  */
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
 #define BLT_W(reg, val)                                                     \
     do {                                                                    \
         uint16_t _v = (uint16_t)(val);                                      \
@@ -125,7 +125,7 @@ static void copper_write_ptr(uint8_t *entry, uint32_t ptr)
 {
     uint16_t hi = (uint16_t)(ptr >> 16);
     uint16_t lo = (uint16_t)(ptr);
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
     /* Amiga: force real move.w instructions — GCC's volatile uint16_t store
      * can decompose into byte-level move.b pairs which corrupt the live
      * copper list. */
@@ -142,7 +142,7 @@ static void copper_write_ptr(uint8_t *entry, uint32_t ptr)
  * Forces a move.w instruction on Amiga; plain store on SDL host. */
 static void copper_write_word(uint8_t *addr, uint16_t val)
 {
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
     __asm__ volatile ("move.w %0,(%1)" : : "d"(val), "a"(addr) : "memory");
 #else
     *(volatile uint16_t *)addr = val;
@@ -1110,9 +1110,14 @@ void BlitterCopyPanelToScreen2(void)
     /* (frontbufferMaskBuffer is a static array, so its address is always
      * non-null — historical NULL guard removed.) */
     uint8_t *dst = (uint8_t *)_frontbufferBasePtr;
+    uint8_t *altDst = (uint8_t *)_frontbufferBaseAltPtr;
+    { extern void Pitch_Forget(const uint8_t *fb);              /* platform_sdl.h: both are replaced whole */
+      Pitch_Forget(dst);
+      Pitch_Forget(altDst); }
+    { extern void Render_MarkRect(int x, int y, int w, int h);   /* platform_sdl.h: before */
+      Render_MarkRect(0, 0, _screen_width, _screen_height); }
     if (dst)
         memcpy(dst, _frontbufferMaskBuffer, FRONTBUFFER_SIZE_TOTAL_BYTES);
-    uint8_t *altDst = (uint8_t *)_frontbufferBaseAltPtr;
     if (altDst && altDst != dst)
         memcpy(altDst, _frontbufferMaskBuffer, FRONTBUFFER_SIZE_TOTAL_BYTES);
 }
@@ -1350,6 +1355,10 @@ void BlitterCopyPanelToScreen(void)
 {
     uint8_t *dst = (uint8_t *)_frontbufferBasePtr;
     /* (frontbufferMaskBuffer is a static array, address always non-null.) */
+    { extern void Pitch_Forget(const uint8_t *fb);              /* platform_sdl.h: replaced whole */
+      Pitch_Forget(dst); }
+    { extern void Render_MarkRect(int x, int y, int w, int h);   /* platform_sdl.h: before */
+      Render_MarkRect(0, 0, _screen_width, _screen_height); }
     if (dst)
         memcpy(dst, _frontbufferMaskBuffer, FRONTBUFFER_SIZE_TOTAL_BYTES);
 }

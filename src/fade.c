@@ -22,7 +22,7 @@
  * (the copper expects atomic word reads). Force a real move.w instruction
  * via inline asm. On the SDL host the copper list is a regular RAM buffer
  * so a plain store is fine. */
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
 #define COPPER_WRITE_W(addr, val) \
     __asm__ volatile ("move.w %0,(%1)" : : "d"((uint16_t)(val)), "a"((volatile uint16_t *)(addr)) : "memory")
 #else

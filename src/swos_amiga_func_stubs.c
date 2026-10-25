@@ -32,7 +32,7 @@ void DetachOSDisplay(void)  {}
  * F227 on boot — interrupt-attribute body returns via `rts`, popping
  * an `rte`-style frame, which lands the PC on garbage). Use naked
  * inline asm so the prologue/epilogue are exactly the m68k ABI. */
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
 extern void _Int2KeyboardHandler(void);  /* worker in interrupts.c */
 extern void _Int3TimerHandler(void);     /* worker in interrupts.c */
 

@@ -21,7 +21,7 @@
  * macros wrap each write in inline `move.w` / `move.l` asm so the
  * single-instruction store is guaranteed on m68k. Defined in blitter.c
  * too — kept local here to avoid an extra header just for these.  */
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
 #define BLT_W(reg, val)                                                     \
     do {                                                                    \
         uint16_t _v = (uint16_t)(val);                                      \
@@ -890,6 +890,8 @@ static uint32_t savedSrcPlaneB;
  * Destination: 8bpp chunky frontbuffer, row stride =
  * FRONTBUFFER_ROW_STRIDE_BYTES (_screen_width on SDL). Camera offsets
  * mirror the Amiga path (cameraXMod320 / cameraYMod320, Y-wrap). */
+typedef uint32_t __attribute__((aligned(1), __may_alias__)) spr_u32_any;
+
 static void blitChunkySprite(SpriteGraphics *a0, int16_t dstX, int16_t dstY)
 {
     if (!a0) return;
@@ -930,18 +932,39 @@ static void blitChunkySprite(SpriteGraphics *a0, int16_t dstX, int16_t dstY)
      * final screen coords. Adding the wrap offsets double-translates
      * sprites off-screen and is what was hiding the players/ball. */
 
-    for (int16_t py = 0; py < sprH; py++) {
-        int16_t dy = dstY + py;
-        if (dy < 0 || dy >= _screen_height) continue;
+    /* Where it lands, for a backend that sends only what changed (platform_wos.c,
+     * the 68060). Here, not in a caller: every chunky sprite comes through. */
+    { extern void Render_MarkRect(int x, int y, int w, int h);    /* platform_sdl.h */
+      Render_MarkRect(dstX, dstY, sprW, sprH); }
 
+    /* Clipped once, not per pixel: a 68060 spent most of the sprite phase on the
+     * tests (the same bytes are written). */
+    int16_t py0 = dstY < 0 ? (int16_t)-dstY : 0;
+    int16_t py1 = dstY + sprH > _screen_height ? (int16_t)(_screen_height - dstY) : sprH;
+    int16_t px0 = dstX < 0 ? (int16_t)-dstX : 0;
+    int16_t px1 = dstX + sprW > _screen_width ? (int16_t)(_screen_width - dstX) : sprW;
+    /* Four pixels at a time where it can: four transparent (0) are skipped, four
+     * solid written as one longword, a mix a byte at a time -- the same bytes. */
+    for (int16_t py = py0; py < py1; py++) {
         const uint8_t *srcRow = data + (size_t)py * pitch;
-        uint8_t       *dstRow = dstBase + (size_t)dy * FRONTBUFFER_ROW_STRIDE_BYTES;
-
-        for (int16_t px = 0; px < sprW; px++) {
-            int16_t dx = dstX + px;
-            if (dx < 0 || dx >= _screen_width) continue;
+        uint8_t       *o      = dstBase + (size_t)(dstY + py) * FRONTBUFFER_ROW_STRIDE_BYTES + dstX;
+        int16_t px = px0;
+        for (; px + 4 <= px1; px += 4) {
+            uint32_t v = *(const spr_u32_any *)(srcRow + px);
+            if (v == 0)
+                continue;
+            if (((v - 0x01010101u) & ~v & 0x80808080u) == 0) {    /* no zero byte */
+                *(spr_u32_any *)(o + px) = v;
+                continue;
+            }
+            if (srcRow[px])     o[px]     = srcRow[px];
+            if (srcRow[px + 1]) o[px + 1] = srcRow[px + 1];
+            if (srcRow[px + 2]) o[px + 2] = srcRow[px + 2];
+            if (srcRow[px + 3]) o[px + 3] = srcRow[px + 3];
+        }
+        for (; px < px1; px++) {
             uint8_t src = srcRow[px];
-            if (src) dstRow[dx] = src;
+            if (src) o[px] = src;
         }
     }
 }

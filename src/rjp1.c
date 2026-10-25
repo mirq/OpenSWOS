@@ -572,6 +572,10 @@ void RJP1_MixSamples(RJP1_Player *p, int sample_rate, int8_t *buf, int len)
     }
     const float a    = s_filter_a;
     const float oneA = 1.0f - s_filter_a;
+#ifdef SWOS_RTG060_BUILD
+    const int32_t aq = (int32_t)(s_filter_a * 32768.0f + 0.5f);
+    (void)a; (void)oneA;
+#endif
 
     for (int i = 0; i < RJP1_NUM_CHANNELS; ++i) {
         RJP1_PaulaChannel *hw = &p->channels[i].hw_channel;
@@ -582,8 +586,12 @@ void RJP1_MixSamples(RJP1_Player *p, int sample_rate, int8_t *buf, int len)
         const int chAtten = p->channel_attenuation[i];
         if (chAtten == 0) continue;
         const uint32_t pos_inc = (uint32_t)((((uint64_t)RJP1_PAULA_FREQ / (uint32_t)hw->per) << RJP1_FRAC_BITS) / (uint32_t)sample_rate);
+        /* Constant through the loop, so out of it (the same results: the volume
+         * product is at most 64 * 64, times a sample of +-128). */
+        int8_t   *lane    = buf + amiga_channel_map[i];
+        const int volAtten = hw->vol * chAtten;
         for (int q = 0; q < len; q += 2) {
-            int b = buf[q + amiga_channel_map[i]];
+            int b = lane[q];
             uint32_t pos = hw->pos >> RJP1_FRAC_BITS;
             if (pos >= hw->len) {
                 if (hw->repeat_len <= 2) {
@@ -619,10 +627,23 @@ void RJP1_MixSamples(RJP1_Player *p, int sample_rate, int8_t *buf, int len)
              * sample, then per-channel attenuation gates the channel.
              * The chant fade-in/out path drives chAtten; the
              * wave-script's set_volume drives hw->vol. */
-            int raw  = sample_lerp * hw->vol * chAtten / (64 * 64);
+            int raw  = sample_lerp * volAtten / (64 * 64);
 
             /* 3-stage cascaded one-pole low-pass — matches the analog
              * chain on real Amigas more closely. */
+#ifdef SWOS_RTG060_BUILD
+            /* The 68060: y += a(x - y) in integers, the state x128 and a x32768
+             * (the same filter within 2 of 255; float on the FPU was most of the
+             * mixer's time). x128 keeps (x - y) * a inside 32 bits for any a < 2:
+             * at 11,025 Hz the 6 kHz cutoff is past Nyquist and a is 1.075. */
+            {
+                int32_t *q = hw->filter_q;
+                q[0] += (int32_t)(((raw << 7) - q[0]) * aq) >> 15;
+                q[1] += (int32_t)((q[0] - q[1]) * aq) >> 15;
+                q[2] += (int32_t)((q[1] - q[2]) * aq) >> 15;
+                b += q[2] >> 7;
+            }
+#else
             float fy = (float)raw;
             hw->filter_state[0] = a * fy                  + oneA * hw->filter_state[0];
             hw->filter_state[1] = a * hw->filter_state[0] + oneA * hw->filter_state[1];
@@ -630,9 +651,10 @@ void RJP1_MixSamples(RJP1_Player *p, int sample_rate, int8_t *buf, int len)
             fy = hw->filter_state[2];
 
             b += (int)fy;
+#endif
             if (b < -128) b = -128;
             else if (b > 127) b = 127;
-            buf[q + amiga_channel_map[i]] = (int8_t)b;
+            lane[q] = (int8_t)b;
             hw->pos += pos_inc;
         }
     }

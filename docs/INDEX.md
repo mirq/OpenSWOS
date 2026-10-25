@@ -135,6 +135,7 @@ docs drift: search by function name.
 | [WASM.md](WASM.md) | The Emscripten/ASYNCIFY web target's design, and the asm-storage-to-C log. Now live, online, plus the player build. | historical | the web build's pacing, threading, IDBFS saves, preload list |
 | [MACOS_BUILD.md](MACOS_BUILD.md) | Building on a Mac: universal binary, `make macos-app`, Gatekeeper; releases go through `scripts/build_macos.sh`. | current | building on the Mac itself |
 | [WARPOS.md](WARPOS.md) | The WarpOS (PowerPC) build on a Picasso96 RTG screen: building, running, the screen-mode choice and pacing, AHI, SWOS_AUTO_MATCH, what is not done yet. | current — plays on a Sonnet + Picasso96 (2026-10-22) | `Makefile.warpos`, `src/*_wos.c`, `src/platform_frame.c`, `src/netplay_offline.c`, `src/auto_match.c`, `tools/elf2warpos` |
+| [RTG060.md](RTG060.md) | The 68060 RTG build: the WarpOS build's platform files run by the 68060 itself, with Bebbo's toolchain and libnix; what differs from WarpOS and why. | current — builds, not yet run on hardware (2026-10-22) | `Makefile.rtg060`, `src/rtg_clock.c`, `include/rtg_clock.h`, `include/rtg_cgx68k.h` |
 | [SWITCH.md](SWITCH.md) | Building, packaging and debugging the Switch flavour; the filesystem/logging differences. No SDK content (NDA). | current — but it says "builds, links and packages" where CLAUDE.md says "not yet linked or run": the owner knows which | `Makefile.switch`, `scripts/build_switch.*` |
 
 ## The Amiga target (AGA resumed 2026-10-10: a whole match plays)

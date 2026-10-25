@@ -262,6 +262,25 @@ const uint8_t *Platform_FrameToShow(void);
 void Platform_FramePalette(uint8_t *rgb768);
 /* The rate the game is paced at: 50 Amiga, 70 DOS, a loaded replay's own. */
 int  Platform_ActivePacingFps(void);
+/* Where this frame drew on top of the pitch (a sprite, a crowd tile), in screen
+ * pixels. A backend that sends only what changed (platform_wos.c, the 68060)
+ * compares just around these; the others never read them. */
+void Render_MarkRect(int x, int y, int w, int h);
+/* This frame's marks: the count (0 .. RENDER_MAX_MARKS), each {x, y, w, h};
+ * *overflow is 1 when more were made than fit. Render_ClearMarks starts the next. */
+#define RENDER_MAX_MARKS 512
+int  Render_Marks(const int16_t (**marks)[4], int *overflow);
+void Render_ClearMarks(void);
+/* The pitch drawn only where it is looked at (src/pitch.c, "Drawing the pitch
+ * only where it is looked at"): a backend that reads the frame only at the marks
+ * and what it sends allows it for the next DrawChunkyPitch, and finishes what it
+ * reads -- FillSpan a row's span, EnsureAll the whole frame. EnsureRect is
+ * Render_MarkRect's; Forget is for a buffer about to be overwritten whole. */
+void Pitch_AllowLazy(int on);
+void Pitch_EnsureRect(int x, int y, int w, int h);
+void Pitch_FillSpan(const uint8_t *fb, int y, int x0, int x1);
+void Pitch_EnsureAll(const uint8_t *fb);
+void Pitch_Forget(const uint8_t *fb);
 
 /* ---- Misc helpers -------------------------------------------------- */
 /* Returns the host's high-resolution monotonic millisecond counter. */

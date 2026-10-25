@@ -24,7 +24,7 @@
 #ifndef SWOS_TYPES_H
 #define SWOS_TYPES_H
 
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
 /* Amiga toolchain: no <stdint.h>. Define the types manually so the
  * back-ported SDL files compile against the same declarations the
  * SDL build gets from libc's stdint.h.
@@ -105,7 +105,7 @@ typedef unsigned long long uint64_t;
  * which the Amiga Makefile filters out, so referencing it breaks the
  * link. For per-call diagnostic output on Amiga, write to a fixed
  * global buffer and inspect via WinUAE memory dump instead.) */
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
 #define SWOS_DBG(...)         ((void)0)
 #define SWOS_DBG_FLUSH()      ((void)0)
 #else

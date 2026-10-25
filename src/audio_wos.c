@@ -38,10 +38,15 @@
 #include <exec/types.h>
 #include <exec/memory.h>
 #include <utility/hooks.h>
-#include <devices/ahi.h>
 #include <proto/exec.h>
+#ifdef SWOS_WARPOS_BUILD
+#include <devices/ahi.h>
 #include <proto/ahi.h>
+#else
+#include "rtg_cgx68k.h"         /* the 68060: AHI's inline macros are the NDK's defines/ */
+#endif
 #pragma pack(pop)
+#include "rtg_clock.h"
 
 /* The AHIET_CHANNELINFO hook, as 68k code: AHI calls it on its own side.
  *     hook->h_Data = info->ahieci_Offset[0]; return 0;
@@ -76,13 +81,10 @@ static uint32_t             s_write;        /* frames written, ever; the ring in
 static int                  s_freq;
 static int                  s_open;
 
+/* dcbf on the PPC; on the 68060 a compiler barrier (rtg_clock.c). */
 static void flush_range(const void *addr, uint32_t len)
 {
-    uintptr_t a = (uintptr_t)addr & ~(uintptr_t)31;
-    uintptr_t end = ((uintptr_t)addr + len + 31) & ~(uintptr_t)31;
-    for (; a < end; a += 32)
-        __asm__ __volatile__ ("dcbf 0,%0" : : "r" (a) : "memory");
-    __asm__ __volatile__ ("sync" ::: "memory");
+    RtgClock_Flush(addr, len);
 }
 
 /* Where AHI is playing, in frames into the ring: the hook's last word, read past
@@ -116,7 +118,14 @@ int AudioOut_Open(int want_freq, int *got_freq)
     const char *env = getenv("SWOS_AHI_RATE");
     struct AHISampleInfo sample;
     (void)want_freq;
+    /* 16 kHz on the 68060: it mixes on the same processor as the game, and so does
+     * AHI -- 22,050 Hz was ~3 ms of a 20 ms frame, 16,000 ~1.6. The PPC mixes at
+     * 22,050. */
+#ifdef SWOS_WARPOS_BUILD
     s_freq = env && atoi(env) >= 8000 && atoi(env) <= 48000 ? atoi(env) : 22050;
+#else
+    s_freq = env && atoi(env) >= 8000 && atoi(env) <= 48000 ? atoi(env) : 16000;
+#endif
 
     if (!(s_port = CreateMsgPort()))
         goto fail;

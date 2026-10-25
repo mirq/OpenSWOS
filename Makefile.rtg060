@@ -1,0 +1,116 @@
+# OpenSWOS for a 68060 Amiga on an RTG screen -- docs/RTG060.md.
+#
+#   make -f Makefile.rtg060 -j$(nproc)      -> bin/SWOS.060 (an AmigaOS hunk program)
+#
+# The WarpOS build (Makefile.warpos) without the PowerPC: the chunky target
+# without SDL -- 8bpp chunky renderer, hosted libc, SWOS.ini, JSON saves -- run by
+# the 68060 itself, on a Picasso96/CyberGraphX 8-bit screen. The platform files are
+# WarpOS's (platform_wos.c, input_wos.c, audio_wos.c): the few calls that differ --
+# the clock, the wait, the cache -- are in include/amiga_rtg.h.
+#
+# Built by Bebbo's m68k-amigaos-gcc with libnix (-noixemul), which writes the hunk
+# executable itself. Not its newlib: that one has no stat, mkdir, signal,
+# gettimeofday or <dirent.h>. libnix has all of them and lacks only funopen,
+# which the WarpOS log uses (platform_wos.c, "The log", says what the 68060 does). NOT the m68k-amiga-elf toolchain of Makefile.amiga: that one is
+# -nostdlib, the hardware build's, and has no hosted libc.
+
+PREFIX ?= /opt/amiga
+CROSS  ?= $(PREFIX)/bin/m68k-amigaos-
+CC     := $(CROSS)gcc
+CPU    ?= 68060
+
+SHELL := /bin/bash
+
+OBJDIR := build/rtg060/m68k
+TARGET := bin/SWOS.060
+
+BUILD_STAMP_UNUSED := $(shell sh scripts/gen_build_info.sh)
+
+# The same exclusions as Makefile.warpos, for the same reasons.
+RTG_EXCLUDE_SRCS := \
+    platform_sdl.c        \
+    input_sdl.c           \
+    crt_effects.c         \
+    mm_client.c           \
+    netem_core.c          \
+    netplay.c             \
+    netplay_live_test.c   \
+    netplay_lobby.c       \
+    netplay_match.c       \
+    netplay_ghost.c       \
+    netplay_netem.c       \
+    online_menus.c        \
+    p2p_link.c            \
+    p2p_menu.c            \
+    match_record.c        \
+    match_report.c
+
+$(foreach f,$(RTG_EXCLUDE_SRCS),$(if $(wildcard src/$(f)),,$(error RTG_EXCLUDE_SRCS lists src/$(f), which does not exist -- update Makefile.rtg060)))
+
+SOURCES := $(filter-out $(addprefix src/,$(RTG_EXCLUDE_SRCS)),$(wildcard src/*.c))
+OBJECTS := $(patsubst src/%.c,$(OBJDIR)/%.o,$(SOURCES))
+DEPS    := $(OBJECTS:.o=.d)
+
+DATA_FLAGS := -DCOMPETITION_DATA_C=1 -DTACTICS_DATA_C=1 -DFIXTURE_DATA_C=1 \
+              -DSIMULATION_DATA_C=1 -DPLAYER_DATA_C=1 -DRENDER_DATA_C=1 \
+              -DPALETTE_DATA_C=1 -DSTRINGS_DATA_C=1 -DGENERAL_DATA_C=1
+
+SWOS_TEST_RULES ?= 1
+ifeq ($(SWOS_TEST_RULES),1)
+GAME_FLAGS += -DSWOS_TEST_RULES=1
+endif
+GAME_FLAGS += -DSWOS_SAVE_FORMAT_JSON=1
+
+# -m68060 -mhard-float: a full 68060 (an LC060 has no FPU and is not a target).
+# -fno-peephole2 -fbbb=-: NOT optional. This gcc (6.5.0b) merges a word clear and
+#   the long clear after it into ONE long clear, so a packed struct's
+#   `u16 = 0; ptr = 0;` leaves the pointer's low 16 bits behind -- in its
+#   peephole2 patterns AND in Bebbo's own backend optimiser (bbb): each flag alone
+#   fixes some cases and not others. It crashed the stadium menu at kick-off:
+#   UnpackMenu's template reset kept StadiumBeforeDrawLeftTeam's low half in
+#   beforeDraw ($0000xxxx), and the player-name entries jumped there
+#   (docs/RTG060.md, "The compiler").
+# -fomit-frame-pointer: a register back on a CPU that has eight data and six
+#   address registers to spare.
+# -Uamiga -Uamigaos -UAMIGA: the compiler predefines these outside the reserved
+#   namespace, and the game has variables called `amiga`.
+ARCH_FLAGS := -m$(CPU) -mhard-float -noixemul
+CFLAGS := -std=gnu11 $(ARCH_FLAGS) -O2 -fno-peephole2 -fbbb=- -fomit-frame-pointer -fno-strict-aliasing -fno-builtin \
+          -fno-common -MMD -MP -DSWOS_RTG060_BUILD=1 $(GAME_FLAGS) $(DATA_FLAGS) \
+          -Wall -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable \
+          -Wno-attributes -Wno-multichar \
+          -Wno-pointer-sign -Wno-int-conversion -Wno-incompatible-pointer-types \
+          -Wno-strict-aliasing -Wno-array-bounds -Wno-comment \
+          -Uamiga -Uamigaos -UAMIGA -Iinclude -Isrc -include include/swos_platform.h \
+          $(EXTRA_CFLAGS)
+# -u ___stkswap: libnix's swapstack.o, which gives main() the stack __stack asks
+# for (platform_wos.c); nothing else would pull it into the link.
+LDFLAGS := $(ARCH_FLAGS) -Wl,-u,___stkswap -lm
+
+# A changed flag rebuilds every object (the SDL Makefile's BUILD_FLAGS_STAMP says why).
+BUILD_FLAGS_STAMP := $(OBJDIR)/.build-flags
+$(shell mkdir -p $(OBJDIR); f='$(CFLAGS)'; [ "$$(cat $(BUILD_FLAGS_STAMP) 2>/dev/null)" = "$$f" ] || printf '%s' "$$f" > $(BUILD_FLAGS_STAMP))
+
+.PHONY: all objects clean
+all: $(TARGET)
+objects: $(OBJECTS)
+
+$(OBJDIR)/%.o: src/%.c $(BUILD_FLAGS_STAMP)
+	@echo "  CC  $<"
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+# The full link with its symbols is kept beside the objects for addr2line against
+# a crash address; bin/ gets it stripped.
+DEBUG_EXE := $(OBJDIR)/SWOS.debug
+
+$(DEBUG_EXE): $(OBJECTS)
+	@echo "  LD  $@"
+	@$(CC) -g -o $@ $(OBJECTS) $(LDFLAGS)
+
+$(TARGET): $(DEBUG_EXE)
+	@$(CROSS)strip -o $@ $<
+
+clean:
+	rm -rf $(OBJDIR) $(TARGET)
+
+-include $(DEPS)

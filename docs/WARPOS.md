@@ -9,6 +9,9 @@ MPC7410 (WarpOS 5.1, `powerpc.library` 17.15), Picasso96 2.495 and AHI: menus, C
 matches and highlights at a full 50 Hz, Amiga music and effects through AHI, keyboard and
 joystick.
 
+The same game run by the 68060 itself, no PPC, is `Makefile.rtg060` (docs/RTG060.md): it
+shares this build's platform files, so a change to them is built for both.
+
 ## Building
 
 ```bash

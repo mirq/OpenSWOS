@@ -23,12 +23,28 @@
 #define SWOS_WARPOS_BUILD 1
 #endif
 
+/* The same game run by a 68060 itself on an RTG screen (docs/RTG060.md):
+ * Makefile.rtg060 passes -DSWOS_RTG060_BUILD=1. Its compiler defines __m68k__,
+ * so every test for the m68k HARDWARE build reads
+ * `defined(__m68k__) && !defined(SWOS_RTG060_BUILD)`.
+ *
+ * SWOS_AMIGA_RTG_BUILD is either of the two: AmigaOS, an RTG screen, no SDL.
+ * What the two share -- the screen, PROGDIR:, the log, no online play -- gates
+ * on it; only what is PowerPC (powerpc.library, the cache) on SWOS_WARPOS_BUILD. */
+#if defined(SWOS_RTG060_BUILD)
+#undef  SWOS_RTG060_BUILD
+#define SWOS_RTG060_BUILD 1
+#endif
+#if defined(SWOS_WARPOS_BUILD) || defined(SWOS_RTG060_BUILD)
+#define SWOS_AMIGA_RTG_BUILD 1
+#endif
+
 /* When the Amiga m68k toolchain compiles a file that pulls this
  * header in transitively (one of the synced data files does), give
  * it an empty translation unit — the SDL_BUILD-only defines below
  * must NOT be visible on Amiga. The SDL build still injects this
  * header via -include in CFLAGS as before. */
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
 /* Amiga build: no platform shim needed. The Amiga m68k-elf toolchain
  * doesn't prefix symbols (ELF on m68k uses bare names), so _ASM_PFX
  * expands to an empty string. The synced data files (swos_globals.c
@@ -49,9 +65,10 @@
  *                      timers, threads and controllers. Only code that CALLS SDL
  *                      gates on it.
  *
- * The m68k hardware build defines neither, WarpOS only the first. Until
+ * The m68k hardware build defines neither, WarpOS and the 68060 RTG build only
+ * the first. Until
  * 2026-10-21 there was only SWOS_SDL_BUILD, meaning both. */
-#ifndef SWOS_WARPOS_BUILD
+#ifndef SWOS_AMIGA_RTG_BUILD
 #define SWOS_SDL_BUILD 1
 #endif
 #define SWOS_CHUNKY_BUILD 1
@@ -154,7 +171,7 @@ typedef __UINTPTR_TYPE__ uintptr_t;
 /* The Amiga code's FixedPoint union is { int16_t i; uint16_t frac } which
  * works on big-endian. On little-endian we need to swap the order so that
  * a raw int32_t value of 0x00010000 still maps to i=1, frac=0. A big-endian
- * host (WarpOS PPC) keeps the Amiga's order. */
+ * host (WarpOS PPC, the 68060) keeps the Amiga's order. */
 #if !(defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
 #define AMIGA_FIXEDPOINT_LE 1
 #endif

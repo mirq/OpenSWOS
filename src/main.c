@@ -85,7 +85,7 @@ static void chdir_to_binary(const char *argv0)
     char *dir;
     int got_path = 0;
 
-#ifdef SWOS_WARPOS_BUILD
+#ifdef SWOS_AMIGA_RTG_BUILD
     /* AmigaOS names the program's own drawer PROGDIR:, however it was started
      * (Shell, Workbench icon, a path with or without a volume). Not newlib's
      * chdir: it UnLocks the directory it leaves, which is the Shell's, and the
@@ -377,11 +377,15 @@ int main(int argc, char **argv)
      * slowed down by that. It costs nothing on a run that completes. */
     setvbuf(stdout, NULL, _IOLBF, 0);
 
-#ifdef SWOS_WARPOS_BUILD
+#ifdef SWOS_AMIGA_RTG_BUILD
     /* `_custom` starts out at the real chipset (0xDFF000, display.c), and on this
      * machine a stray write there reaches the hardware, where under SDL it would
      * only fault: point it at the stand-in registers before any game code runs. */
     { extern void Platform_RewireCustom(void); Platform_RewireCustom(); }
+#ifdef SWOS_RTG060_BUILD
+    /* A CPU exception's address into SWOS.log (platform_wos.c, "A crash"). */
+    { extern void Platform_InstallCrashTrap(void); Platform_InstallCrashTrap(); }
+#endif
     /* stderr to the development bridge from the first line on, the file once the
      * game folder is known (platform_wos.c). */
     { extern int Platform_OpenSyncLog(const char *path); Platform_OpenSyncLog(NULL); }
@@ -418,7 +422,7 @@ int main(int argc, char **argv)
 #if !defined(SWOS_WASM_BUILD) && !defined(SWOS_SWITCH_BUILD)
     chdir_to_binary(argv ? argv[0] : NULL);
 #endif
-#ifdef SWOS_WARPOS_BUILD
+#ifdef SWOS_AMIGA_RTG_BUILD
     fprintf(stderr, "[wos] main: in the game's drawer\n");
 #endif
 
@@ -428,7 +432,7 @@ int main(int argc, char **argv)
      * folder if missing; if it can't be resolved, falls back to the exe dir.
      * (Was called later, after SDL_Init — moved up so the ini lookup uses it.) */
     swos_save_dir_init();
-#ifdef SWOS_WARPOS_BUILD
+#ifdef SWOS_AMIGA_RTG_BUILD
     fprintf(stderr, "[wos] main: save folder ready\n");
 #endif
 
@@ -1174,7 +1178,7 @@ int main(int argc, char **argv)
     if (getenv("SWOS_NO_LOG") == NULL) {
         char log_path[1088];
         swos_path_join(log_path, sizeof log_path, swos_user_dir(), "SWOS.log");
-#ifdef SWOS_WARPOS_BUILD
+#ifdef SWOS_AMIGA_RTG_BUILD
         /* An AmigaDOS file's size is written when it is CLOSED: a log held open
          * through a crash comes back empty, and a crash is when it is needed.
          * Every write appends and closes (platform_wos.c). */
@@ -1405,7 +1409,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-#ifdef SWOS_WARPOS_BUILD
+#ifdef SWOS_AMIGA_RTG_BUILD
     fprintf(stderr, "[wos] main: settings read, starting the platform\n");
 #endif
     if (Platform_Init(&opts) != 0) {
@@ -1421,7 +1425,7 @@ int main(int argc, char **argv)
     /* Hand off to the (ported) Amiga bootstrap. startShim runs _start()
      * (hardware init -- now no-ops via stubs) then mainC() which is the
      * actual game loop. The game pumps SDL via Platform_VBlank() callbacks. */
-#ifdef SWOS_WARPOS_BUILD
+#ifdef SWOS_AMIGA_RTG_BUILD
     fprintf(stderr, "[wos] main: into the game\n");
 #endif
     startShim();

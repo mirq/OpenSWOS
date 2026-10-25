@@ -48,7 +48,7 @@ extern volatile uint16_t _seasonUpdateInProgress;
  * the decomposed write triggers the blit mid-update with a half-formed
  * size — fill/copy operations either do nothing or write garbage.
  * Same macros as in blitter.c / sprites.c / scroll_blit.c.  */
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
 #define BLT_W(reg, val)                                                     \
     do {                                                                    \
         uint16_t _v = (uint16_t)(val);                                      \

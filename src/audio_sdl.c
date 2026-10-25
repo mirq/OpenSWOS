@@ -137,7 +137,7 @@ static int16_t           s_out_buf[48000 * 2 / 50 + 128];
  * which jitters more (browser scheduling / GC) than a native timer thread — a
  * deeper queue rides that out. Paired with the real-audio fill loop (below /
  * Platform_RenderFrame) instead of the native silence-pad. */
-#if defined(SWOS_WASM_BUILD) || defined(SWOS_WARPOS_BUILD)   /* both: pumped once a frame */
+#if defined(SWOS_WASM_BUILD) || defined(SWOS_AMIGA_RTG_BUILD)   /* both: pumped once a frame */
 #define QUEUE_TARGET_MS  120
 #else
 #define QUEUE_TARGET_MS  80

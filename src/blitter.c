@@ -24,7 +24,7 @@
  * not real hardware, and the writes are no-ops anyway). We already use
  * this pattern in display.c for copper writes (`copper_write_word` /
  * `copper_write_ptr`) — see those for context. */
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
 #define BLT_W(reg, val)                                                     \
     do {                                                                    \
         uint16_t _v = (uint16_t)(val);                                      \
@@ -282,6 +282,10 @@ static void fillRectChunky(uint16_t x0, uint16_t y0, uint16_t w, uint16_t h,
                            uint16_t color, uint8_t *buf)
 {
     uint8_t pixel = (uint8_t)color;
+    /* platform_sdl.h: a backend that sends only what changed (the 68060). buf
+     * already has the menu's x offset in it. */
+    { extern void Render_MarkRect(int x, int y, int w, int h);
+      Render_MarkRect((int)x0 + _menu_draw_x_offset, (int)y0, (int)w, (int)h); }
     for (uint16_t dy = 0; dy < h; dy++) {
         uint16_t yy = (uint16_t)(y0 + dy);
         if (yy >= SCREEN_HEIGHT) continue;

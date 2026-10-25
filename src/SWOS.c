@@ -80,7 +80,7 @@ static void set_vector(uintptr_t vbr, uintptr_t offset, void (*handler)(void))
  * shim never calls this directly -- it goes straight to mainC. The
  * Amiga assembly (swos2_unit.s) still does `jsr _start`, so expose
  * the same body under both names on that build. */
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
 __attribute__((alias("swos_c_start"), used, externally_visible))
 void _start(void);
 #endif

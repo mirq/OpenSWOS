@@ -58,7 +58,7 @@ uint8_t SaveJson_GetLoadedPrimaryCountryCode(void)
  * is undeclared too. Provide explicit prototypes for the strict
  * builtin-mismatch check; the symbols themselves resolve at link
  * time via libc / gcc8_c_support. */
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
 extern size_t strlen(const char *s);
 extern int    strcmp(const char *a, const char *b);
 extern int    memcmp(const void *a, const void *b, size_t n);

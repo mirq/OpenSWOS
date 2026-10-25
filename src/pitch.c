@@ -914,8 +914,185 @@ static int32_t s_pitchDrawn;
 int32_t Pitch_DrawnThisMatch(void) { return s_pitchDrawn >= 2; }
 void    Pitch_ResetDrawn(void) { s_pitchDrawn = 0; }
 
+/* The visible pitch, as DrawChunkyPitch lays it out. */
+typedef struct {
+    uint8_t *fb;
+    int fbW, fbH;
+    int startTileX, startTileY, offsetX, offsetY;
+    int tilesAcross, tilesDown;
+    int mapped;
+} PitchView;
+
+/* The tile at visible tile (tx, ty); NULL off the pitch (the surround, colour 0). */
+static uint8_t *tile_ptr(const PitchView *vp, int tx, int ty)
+{
+    int gridX = vp->startTileX + tx, gridY = vp->startTileY + ty;
+    uint8_t *tile = (uint8_t *)0;
+    if (gridX >= 0 && gridX < PITCH_GRID_COLS &&
+        gridY >= 0 && gridY < PITCH_GRID_ROWS) {
+        int ptrIdx = PITCH_PTR_START + gridY * PITCH_GRID_COLS + gridX;
+        tile = (ptrIdx >= 0 && ptrIdx < PITCH_POINTER_COUNT)
+                 ? _s_pitchFullPtrs[ptrIdx] : (uint8_t *)0;
+        /* Drawn from a map: the map's tile for this cell, seated or standing
+         * as the engine's own tile there is (src/pitch_map.c). */
+        if (vp->mapped && ptrIdx >= 0 && ptrIdx < PITCH_POINTER_COUNT)
+            tile = (uint8_t *)PitchMap_Tile(ptrIdx, tile);
+    }
+    return tile;
+}
+
+static void draw_tile(const PitchView *vp, int tx, int ty)
+{
+    int screenX = tx * PITCH_TILE_SIZE - vp->offsetX;
+    int screenY = ty * PITCH_TILE_SIZE - vp->offsetY;
+    const int fbW = vp->fbW, fbH = vp->fbH;
+    uint8_t *tile = tile_ptr(vp, tx, ty);
+
+    int r0 = screenY < 0 ? -screenY : 0;
+    int r1 = fbH - screenY < PITCH_TILE_SIZE ? fbH - screenY : PITCH_TILE_SIZE;
+    int c0 = screenX < 0 ? -screenX : 0;
+    int c1 = fbW - screenX < PITCH_TILE_SIZE ? fbW - screenX : PITCH_TILE_SIZE;
+    if (r0 >= r1 || c0 >= c1) return;
+    uint8_t *dstRow = vp->fb + (screenY + r0) * fbW + screenX;
+    if (tile && c0 == 0 && c1 == PITCH_TILE_SIZE) {
+        const uint8_t *srcRow = tile + r0 * PITCH_TILE_SIZE;
+        for (int row = r0; row < r1; row++, dstRow += fbW, srcRow += PITCH_TILE_SIZE)
+            __builtin_memcpy(dstRow, srcRow, PITCH_TILE_SIZE);
+    } else if (tile) {
+        const uint8_t *srcRow = tile + r0 * PITCH_TILE_SIZE;
+        for (int row = r0; row < r1; row++, dstRow += fbW, srcRow += PITCH_TILE_SIZE)
+            for (int col = c0; col < c1; col++)
+                dstRow[col] = srcRow[col];
+    } else {
+        for (int row = r0; row < r1; row++, dstRow += fbW)
+            for (int col = c0; col < c1; col++)
+                dstRow[col] = 0;
+    }
+}
+
+/* ---- Drawing the pitch only where it is looked at --------------------------
+ * A backend that sends the card only what changed (platform_wos.c, the 68060:
+ * the card shifts its own picture with the camera) never reads most of the
+ * frame, and the whole redraw was ~7 ms of a 20 ms frame there. With
+ * Pitch_AllowLazy(1), DrawChunkyPitch only remembers the view, and the pitch
+ * is drawn:
+ *   - a whole tile at a time under every Render_MarkRect, BEFORE the writer
+ *     draws (the writers mark first): what it leaves transparent shows grass;
+ *   - a span at a time by Pitch_FillSpan, for what the backend sends or reads
+ *     back -- what nobody draws on any more this frame;
+ *   - all of it by Pitch_EnsureAll, before the frame is used whole (compared,
+ *     sent everywhere).
+ * The state is PER BUFFER (the game draws into two in turn and a buffer can be
+ * shown again without being redrawn: a pause), so each keeps its own view and
+ * which of its tiles are drawn. A buffer replaced wholesale (Pitch_Forget, the
+ * panel copies) holds no pitch to finish. A writer that does not mark is
+ * caught as before, by the backend's read-back of the card. */
+#define LAZY_ROWS 24                    /* tilesDown: 272 / 16 + 2 */
+#define LAZY_COLS 64                    /* tilesAcross: 672 / 16 + 2 */
+typedef struct {
+    PitchView vp;
+    int incomplete;
+    uint32_t drawn[LAZY_ROWS][LAZY_COLS / 32];
+} LazyPitch;
+static LazyPitch s_lazy[2];
+static int s_lazyAllowed, s_lazyNext;
+
+void Pitch_AllowLazy(int on) { s_lazyAllowed = on; }
+
+static LazyPitch *lazy_for(const uint8_t *fb)
+{
+    if (s_lazy[0].incomplete && s_lazy[0].vp.fb == fb) return &s_lazy[0];
+    if (s_lazy[1].incomplete && s_lazy[1].vp.fb == fb) return &s_lazy[1];
+    return (LazyPitch *)0;
+}
+
+void Pitch_Forget(const uint8_t *fb)
+{
+    LazyPitch *lp = lazy_for(fb);
+    if (lp) lp->incomplete = 0;
+}
+
+static void lazy_tiles(LazyPitch *lp, int x, int y, int w, int h)
+{
+    const PitchView *vp = &lp->vp;
+    int tx0, tx1, ty0, ty1, tx, ty;
+    if (w <= 0 || h <= 0) return;
+    tx0 = (x + vp->offsetX) >> 4;
+    ty0 = (y + vp->offsetY) >> 4;
+    tx1 = (x + w - 1 + vp->offsetX) >> 4;
+    ty1 = (y + h - 1 + vp->offsetY) >> 4;
+    if (tx0 < 0) tx0 = 0;
+    if (ty0 < 0) ty0 = 0;
+    if (tx1 >= vp->tilesAcross) tx1 = vp->tilesAcross - 1;
+    if (ty1 >= vp->tilesDown) ty1 = vp->tilesDown - 1;
+    for (ty = ty0; ty <= ty1; ty++) {
+        uint32_t *d = lp->drawn[ty];
+        for (tx = tx0; tx <= tx1; tx++) {
+            uint32_t bit = 1u << (tx & 31);
+            if (!(d[tx >> 5] & bit)) {
+                d[tx >> 5] |= bit;
+                draw_tile(vp, tx, ty);
+            }
+        }
+    }
+}
+
+/* Render_MarkRect's half: the rectangle is about to be drawn on. */
+void Pitch_EnsureRect(int x, int y, int w, int h)
+{
+    LazyPitch *lp;
+    if (!s_lazy[0].incomplete && !s_lazy[1].incomplete) return;
+    lp = lazy_for((const uint8_t *)(uintptr_t)_frontbufferBasePtr);
+    if (lp) lazy_tiles(lp, x, y, w, h);
+}
+
+void Pitch_EnsureAll(const uint8_t *fb)
+{
+    LazyPitch *lp = lazy_for(fb);
+    if (!lp) return;
+    lazy_tiles(lp, 0, 0, lp->vp.fbW, lp->vp.fbH);
+    lp->incomplete = 0;
+}
+
+/* Row y, [x0, x1): the pitch where no tile is drawn yet. Nothing may draw there
+ * after this, so the tiles stay undrawn: only the pixels asked for are written. */
+void Pitch_FillSpan(const uint8_t *fb, int y, int x0, int x1)
+{
+    LazyPitch *lp = lazy_for(fb);
+    const PitchView *vp;
+    const uint32_t *d;
+    uint8_t *row;
+    int wy, ty, r, x;
+    if (!lp) return;
+    vp = &lp->vp;
+    if (y < 0 || y >= vp->fbH) return;
+    if (x0 < 0) x0 = 0;
+    if (x1 > vp->fbW) x1 = vp->fbW;
+    wy = y + vp->offsetY;
+    ty = wy >> 4;
+    r = (wy & 15) * PITCH_TILE_SIZE;
+    d = lp->drawn[ty];
+    row = vp->fb + y * vp->fbW;
+    for (x = x0; x < x1; ) {
+        int wx = x + vp->offsetX, tx = wx >> 4, c = wx & 15;
+        int n = PITCH_TILE_SIZE - c;
+        if (n > x1 - x) n = x1 - x;
+        if (!(d[tx >> 5] & (1u << (tx & 31)))) {
+            const uint8_t *tile = tile_ptr(vp, tx, ty);
+            if (tile)
+                __builtin_memcpy(row + x, tile + r + c, (size_t)n);
+            else
+                __builtin_memset(row + x, 0, (size_t)n);
+        }
+        x += n;
+    }
+}
+
 void DrawChunkyPitch(void)
 {
+    PitchView vp;
+    LazyPitch *lp;
+
     if (s_pitchDrawn < 2) s_pitchDrawn++;
 
     uint8_t  *fb        = (uint8_t *)(uintptr_t)_frontbufferBasePtr;
@@ -924,60 +1101,32 @@ void DrawChunkyPitch(void)
     /* Both runtime: 336x272 for the Amiga view, 320x200 for the DOS one. The
      * old comments here said 320/200 -- inherited from the DOS source this was
      * ported from, and wrong for every build since. */
-    const int fbW = FRONTBUFFER_ROW_STRIDE_BYTES;
-    const int fbH = _screen_height;
+    vp.fb    = fb;
+    vp.fbW   = FRONTBUFFER_ROW_STRIDE_BYTES;
+    vp.fbH   = _screen_height;
+    vp.startTileX = (int)Render_CameraX() / PITCH_TILE_SIZE;
+    vp.startTileY = (int)Render_CameraY() / PITCH_TILE_SIZE;
+    vp.offsetX    = (int)Render_CameraX() % PITCH_TILE_SIZE;
+    vp.offsetY    = (int)Render_CameraY() % PITCH_TILE_SIZE;
+    if (vp.offsetX < 0) { vp.offsetX += PITCH_TILE_SIZE; vp.startTileX--; }
+    if (vp.offsetY < 0) { vp.offsetY += PITCH_TILE_SIZE; vp.startTileY--; }
+    vp.tilesAcross = vp.fbW / PITCH_TILE_SIZE + 2;
+    vp.tilesDown   = vp.fbH / PITCH_TILE_SIZE + 2;
+    vp.mapped = PitchMap_Active();
 
-    int startTileX = (int)Render_CameraX() / PITCH_TILE_SIZE;
-    int startTileY = (int)Render_CameraY() / PITCH_TILE_SIZE;
-    int offsetX    = (int)Render_CameraX() % PITCH_TILE_SIZE;
-    int offsetY    = (int)Render_CameraY() % PITCH_TILE_SIZE;
-    if (offsetX < 0) { offsetX += PITCH_TILE_SIZE; startTileX--; }
-    if (offsetY < 0) { offsetY += PITCH_TILE_SIZE; startTileY--; }
-
-    int tilesAcross = fbW / PITCH_TILE_SIZE + 2;
-    int tilesDown   = fbH / PITCH_TILE_SIZE + 2;
-    const int mapped = PitchMap_Active();
-
-    for (int ty = 0; ty < tilesDown; ty++) {
-        int gridY = startTileY + ty;
-        int screenY = ty * PITCH_TILE_SIZE - offsetY;
-        for (int tx = 0; tx < tilesAcross; tx++) {
-            int gridX = startTileX + tx;
-            int screenX = tx * PITCH_TILE_SIZE - offsetX;
-
-            /* Off-pitch area: paint the surround color (palette 0). */
-            uint8_t *tile = (uint8_t *)0;
-            if (gridX >= 0 && gridX < PITCH_GRID_COLS &&
-                gridY >= 0 && gridY < PITCH_GRID_ROWS) {
-                int ptrIdx = PITCH_PTR_START + gridY * PITCH_GRID_COLS + gridX;
-                tile = (ptrIdx >= 0 && ptrIdx < PITCH_POINTER_COUNT)
-                         ? _s_pitchFullPtrs[ptrIdx] : (uint8_t *)0;
-                /* Drawn from a map: the map's tile for this cell, seated or standing
-                 * as the engine's own tile there is (src/pitch_map.c). */
-                if (mapped && ptrIdx >= 0 && ptrIdx < PITCH_POINTER_COUNT)
-                    tile = (uint8_t *)PitchMap_Tile(ptrIdx, tile);
-            }
-
-            for (int row = 0; row < PITCH_TILE_SIZE; row++) {
-                int py = screenY + row;
-                if (py < 0 || py >= fbH) continue;
-                uint8_t *dstRow = fb + py * fbW;
-                if (tile) {
-                    const uint8_t *srcRow = tile + row * PITCH_TILE_SIZE;
-                    for (int col = 0; col < PITCH_TILE_SIZE; col++) {
-                        int px = screenX + col;
-                        if (px < 0 || px >= fbW) continue;
-                        dstRow[px] = srcRow[col];
-                    }
-                } else {
-                    for (int col = 0; col < PITCH_TILE_SIZE; col++) {
-                        int px = screenX + col;
-                        if (px < 0 || px >= fbW) continue;
-                        dstRow[px] = 0;
-                    }
-                }
-            }
-        }
+    /* This buffer's state: the slot it had, else the one used longest ago. */
+    lp = s_lazy[0].vp.fb == fb ? &s_lazy[0] : s_lazy[1].vp.fb == fb ? &s_lazy[1]
+                                            : &s_lazy[s_lazyNext ^= 1];
+    lp->vp = vp;
+    lp->incomplete = 0;
+    if (s_lazyAllowed && vp.tilesAcross <= LAZY_COLS && vp.tilesDown <= LAZY_ROWS) {
+        __builtin_memset(lp->drawn, 0, sizeof lp->drawn);
+        lp->incomplete = 1;
+        return;
     }
+
+    for (int ty = 0; ty < vp.tilesDown; ty++)
+        for (int tx = 0; tx < vp.tilesAcross; tx++)
+            draw_tile(&vp, tx, ty);
 }
 #endif

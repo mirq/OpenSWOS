@@ -24,6 +24,11 @@
 #define RASTER(rgb12)   do { \
         while (((*(volatile uint32_t *)&_custom->vposr >> 8) & 0x1FFu) < 8u) {} \
         _custom->color[0] = (uint16_t)(rgb12); } while (0)
+#elif defined(SWOS_AMIGA_RTG_BUILD)
+/* The RTG builds have no beam to paint: the same markers time the phases instead,
+ * reported with SWOS_PRESENT_STATS=1 (platform_wos.c, "[present] phases"). */
+void Platform_Phase(int rgb12);
+#define RASTER(rgb12)   Platform_Phase(rgb12)
 #else
 #define RASTER(rgb12)   ((void)0)
 #endif

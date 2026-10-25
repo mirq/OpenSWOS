@@ -24,7 +24,7 @@
  * tiny implementations here. SDL builds use the host libc so these
  * are skipped.
  * ============================================================ */
-#if defined(__m68k__)
+#if defined(__m68k__) && !defined(SWOS_RTG060_BUILD)
 
 size_t strlen(const char *s) {
     const char *p = s;
@@ -314,8 +314,8 @@ void swos_save_dir_init(void)
      * s_user_dir stays "." so SWOS.ini resolves to /SWOS.ini (where wasm/pre.js
      * copies it from localStorage). */
     return;
-#elif defined(SWOS_WARPOS_BUILD)
-    /* WarpOS: the game's own drawer is the game folder, as on the m68k Amiga --
+#elif defined(SWOS_AMIGA_RTG_BUILD)
+    /* WarpOS and the 68060 RTG build: the game's own drawer is the game folder, as on the m68k Amiga --
      * main() has made it the current directory, so SWOS.ini and save/ sit beside
      * the program and the "." / "save" defaults are already right. A drawer
      * copied without its empty save/ still gets one. */

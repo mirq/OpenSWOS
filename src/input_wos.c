@@ -26,14 +26,13 @@
 #include <stdio.h>
 #include <string.h>
 #include "swos_types.h"
+#include "rtg_clock.h"
 
 #pragma pack(push, 2)
 #include <exec/types.h>
 #include <libraries/lowlevel.h>
 #include <proto/exec.h>
 #include <proto/lowlevel.h>
-#include <powerpc/powerpc.h>
-#include <powerpc/powerpc_protos.h>
 #pragma pack(pop)
 
 struct Library *LowLevelBase;
@@ -206,12 +205,10 @@ static void read_port(ULONG port, int slot, int *up, int *down, int *left, int *
     }
     s_port_probe[slot] = 50;
     {
-        struct timeval t0, t1;
+        uint64_t t0 = RtgClock_NowUs();
         int32_t us;
-        GetSysTimePPC(&t0);
         s = ReadJoyPort(port);
-        GetSysTimePPC(&t1);
-        us = (int32_t)(t1.tv_secs - t0.tv_secs) * 1000000 + (int32_t)t1.tv_micro - (int32_t)t0.tv_micro;
+        us = (int32_t)(RtgClock_NowUs() - t0);
         if (us > 3000)
             fprintf(stderr, "[joy] ReadJoyPort(%lu) took %ld us (type $%08lx)\n",
                     (unsigned long)port, (long)us, (unsigned long)(s & JP_TYPE_MASK));

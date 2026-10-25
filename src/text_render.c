@@ -80,6 +80,10 @@ static void blitGlyphBitplanes(uint16_t sprIdx, int16_t dstX, int16_t dstY,
     int16_t glyphH = spr->nlines;
     int16_t pitch  = spr->wquads * 16;       /* chunky row stride */
 
+    /* platform_sdl.h: a backend that sends only what changed (the 68060) */
+    { extern void Render_MarkRect(int x, int y, int w, int h);
+      Render_MarkRect(dstX + _menu_draw_x_offset, dstY, glyphW, glyphH); }
+
     for (int16_t py = 0; py < glyphH; py++) {
         int16_t dy = dstY + py;
         if (dy < 0 || dy >= SCREEN_HEIGHT) continue;

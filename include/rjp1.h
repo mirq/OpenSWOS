@@ -48,6 +48,11 @@ typedef struct RJP1_PaulaChannel {
      * in HERO.SNG, where it sounded like the singing channel was
      * outright missing. Cyxx player upstream uses the same filter. */
     float    filter_state[3];
+#ifdef SWOS_RTG060_BUILD
+    /* The same filter in fixed point (x128) on the 68060, whose FPU made it the
+     * mixer's main cost (rjp1.c, RJP1_MixSamples). */
+    int32_t  filter_q[3];
+#endif
 } RJP1_PaulaChannel;
 
 typedef struct RJP1_Channel {

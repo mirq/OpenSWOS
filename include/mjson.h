@@ -104,7 +104,7 @@ int mjson_get_long(const char *buf, int len, const char *path, long *v);
 /* Double variant — only available where soft-float / FPU is wired up
  * (i.e. the SDL host). On Amiga m68k we can't pull in `__floatsidf`
  * and friends, so the double API is omitted entirely. */
-#if !defined(__m68k__)
+#if !defined(__m68k__) || defined(SWOS_RTG060_BUILD)
 int mjson_get_number(const char *buf, int len, const char *path, double *v);
 #endif
 int mjson_get_bool(const char *buf, int len, const char *path, int *v);

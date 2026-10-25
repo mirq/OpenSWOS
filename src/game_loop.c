@@ -717,6 +717,7 @@ GameFrameResult GameLoop_Frame(void)
     /* Run gameplay update */
     RASTER(RASTER_SCROLL);
     MoveCamera();
+    RASTER(0x0001);  /* TEMP 060 profiling: ScrollToCurrent */
 #if MATCH_BACKGROUND_UNDRAW
     /* The scroll draws into the frame being undrawn, so it waits for the undraw, after
      * the logic below. The logic reads one thing the scroll writes: whether the camera
@@ -745,6 +746,7 @@ GameFrameResult GameLoop_Frame(void)
      * With both in render space, `sprite_x + cam_x` IS the world position, which
      * is what DrawReplayFrame now reconstructs and re-projects through the
      * playback camera. Identity at 336 and on the Amiga, where max == pan. */
+    RASTER(0x0002);  /* TEMP 060 profiling: highlights coords */
     SaveCoordinatesForHighlights((int16_t)0xFFFF,
 #ifdef SWOS_CHUNKY_BUILD
                                  (uint16_t)Render_CameraX(),
@@ -756,9 +758,11 @@ GameFrameResult GameLoop_Frame(void)
 #else
                                  _cameraY.s.i);
 #endif
+    RASTER(0x0003);  /* TEMP 060 profiling: replay recorder */
 #ifdef SWOS_CHUNKY_BUILD
     { extern void ReplayRec_FrameBegin(void); ReplayRec_FrameBegin(); }
 #endif
+    RASTER(0x0004);  /* TEMP 060 profiling: samples, time, arcade */
     PlayEnqueuedSamples();
     UpdateTime();
 #ifdef SWOS_CHUNKY_BUILD
